@@ -27,7 +27,7 @@
 	aon: aon {
 		compatible = "thead,light-aon";
 		mbox-names = "aon";
-		mboxes = <&mbox_910t 1 0>;
+		mboxes = <&mbox_910t 1>;
 		status = "okay";
 
 		log-memory-region = <&aon_log_mem>;
@@ -596,18 +596,6 @@
 				#interrupt-cells = <2>;
 				interrupts = <55 IRQ_TYPE_LEVEL_HIGH>;
 			};
-		};
-
-		mbox_910t: mailbox@ffffc38000 {
-		       compatible = "thead,th1520-mbox";
-		       reg = <0xff 0xffc38000 0x0 0x4000>,
-			     <0xff 0xffc44000 0x0 0x1000>,
-			     <0xff 0xffc4c000 0x0 0x1000>,
-			     <0xff 0xffc54000 0x0 0x1000>;
-		       reg-names = "local", "remote-icu0", "remote-icu1", "remote-icu2";
-		       interrupt-parent = <&plic>;
-		       interrupts = <28 IRQ_TYPE_LEVEL_HIGH>;
-		       #mbox-cells = <2>;
 		};
 
 		gpu: gpu@13000000 {
