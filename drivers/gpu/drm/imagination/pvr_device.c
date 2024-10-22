@@ -326,6 +326,7 @@ pvr_load_gpu_id(struct pvr_device *pvr_dev)
 	struct pvr_gpu_id *gpu_id = &pvr_dev->gpu_id;
 	u64 bvnc;
 
+	dev_err(pvr_dev->base.dev, "Before reading BVNC\n");
 	/*
 	 * Try reading the BVNC using the newer (cleaner) method first. If the
 	 * B value is zero, fall back to the older method.
@@ -347,6 +348,8 @@ pvr_load_gpu_id(struct pvr_device *pvr_dev)
 		gpu_id->n = FIELD_GET(0xFF00, core_id_config);
 		gpu_id->c = FIELD_GET(0x00FF, core_id_config);
 	}
+
+	dev_err(pvr_dev->base.dev, "After reading BVNC\n");
 }
 
 /**
