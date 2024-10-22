@@ -6,11 +6,37 @@
 
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/clock/thead,th1520-clk-ap.h>
+#include <dt-bindings/firmware/thead/rsrc.h>
 
 / {
 	compatible = "thead,th1520";
 	#address-cells = <2>;
 	#size-cells = <2>;
+
+	resmem: reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		aon_log_mem: memory@33600000 {
+			reg = <0x0 0x33600000 0x0 0x200000>;
+		};
+
+	};
+
+	aon: aon {
+		compatible = "thead,light-aon";
+		mbox-names = "aon";
+		mboxes = <&mbox_910t 1 0>;
+		status = "okay";
+
+		log-memory-region = <&aon_log_mem>;
+
+		pd: light-aon-pd {
+			compatible = "thead,light-aon-pd";
+			#power-domain-cells = <1>;
+		};
+	};
 
 	cpus: cpus {
 		#address-cells = <1>;
@@ -567,5 +593,17 @@
 		       interrupts = <28 IRQ_TYPE_LEVEL_HIGH>;
 		       #mbox-cells = <2>;
 		};
+
+		gpu: gpu@13000000 {
+			compatible = "img,img-axe";
+			reg = <0xff 0xef400000 0x0 0x100000>;
+			interrupt-parent = <&plic>;
+			interrupts = <102 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&osc_32k>;
+			clock-names = "core";
+			power-domains = <&pd LIGHT_AON_GPU_PD>;
+			status = "okay";
+		};
+
 	};
 };
