@@ -104,12 +104,17 @@ static int light_aon_pd_power(struct generic_pm_domain *domain, bool power_on)
 
 static int light_aon_pd_power_on(struct generic_pm_domain *domain)
 {
-	return light_aon_pd_power(domain, true);
+	/* Powering on the AON (Always-On) power domain. This is part of an
+	   experimental test to observe how the GPU driver behaves when powered off,
+	   allowing for comparison with its behavior when powered on.
+	 */
+
+	return light_aon_pd_power(domain, false);
 }
 
 static int light_aon_pd_power_off(struct generic_pm_domain *domain)
 {
-	return light_aon_pd_power(domain, false);
+	return light_aon_pd_power(domain, true);
 }
 
 static struct generic_pm_domain *light_aon_pd_xlate(const struct of_phandle_args *spec,
