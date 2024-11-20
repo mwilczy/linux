@@ -16,12 +16,6 @@ properties:
       - rockchip,rk3036-inno-hdmi
       - rockchip,rk3128-inno-hdmi
 
-  reg:
-    maxItems: 1
-
-  interrupts:
-    maxItems: 1
-
   clocks:
     items:
       - description: The HDMI controller main clock
@@ -38,30 +32,14 @@ properties:
   "#sound-dai-cells":
     const: 0
 
-  ports:
-    $ref: /schemas/graph.yaml#/properties/ports
-
-    properties:
-      port@0:
-        $ref: /schemas/graph.yaml#/properties/port
-        description:
-          Port node with one endpoint connected to a vop node.
-
-      port@1:
-        $ref: /schemas/graph.yaml#/properties/port
-        description:
-          Port node with one endpoint connected to a hdmi-connector node.
-
-    required:
-      - port@0
-      - port@1
-
   rockchip,grf:
     $ref: /schemas/types.yaml#/definitions/phandle
     description:
       Phandle to GRF used for control the polarity of hsync/vsync of rk3036
       HDMI.
 
+=======
+>>>>>>> 7f4e372e5ded (dt-bindings: display: bindings for starfive,JH7110 display pipeline)
 required:
   - compatible
   - reg
@@ -73,6 +51,7 @@ required:
   - ports
 
 allOf:
+  - $ref: ../bridge/innosilicon,inno-hdmi.yaml#
   - $ref: /schemas/sound/dai-common.yaml#
   - if:
       properties:
@@ -96,7 +75,7 @@ allOf:
       required:
         - power-domains
 
-additionalProperties: false
+unevaluatedProperties: false
 
 examples:
   - |
