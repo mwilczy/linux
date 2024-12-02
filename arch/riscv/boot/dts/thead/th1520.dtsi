@@ -6,11 +6,48 @@
 
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/clock/thead,th1520-clk-ap.h>
+#include <dt-bindings/clock/light-vosys.h>
+#include <dt-bindings/firmware/thead/rsrc.h>
+#include <dt-bindings/clock/light-fm-ap-clock.h>
+
 
 / {
 	compatible = "thead,th1520";
 	#address-cells = <2>;
 	#size-cells = <2>;
+
+	resmem: reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* global autoconfigured region for contiguous allocations */
+		cmamem: linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0 0x14000000>; // 320MB by default
+			alloc-ranges = <0 0x64000000 0 0x14000000>; // [0x6400_0000 ~ 0x7800_0000]
+			linux,cma-default;
+		};
+		aon_log_mem: memory@33600000 {
+			reg = <0x0 0x33600000 0x0 0x200000>;
+		};
+
+	};
+
+	aon: aon {
+		compatible = "thead,light-aon";
+		mbox-names = "aon";
+		mboxes = <&mbox_910t 1 0>;
+		status = "okay";
+
+		log-memory-region = <&aon_log_mem>;
+
+		pd: light-aon-pd {
+			compatible = "thead,light-aon-pd";
+			#power-domain-cells = <1>;
+		};
+	};
 
 	cpus: cpus {
 		#address-cells = <1>;
@@ -229,6 +266,69 @@
 		snps,blen = <0 0 64 32 0 0 0>;
 	};
 
+	dummy_clock_apb: apb-clock@0 {
+		compatible = "fixed-clock";
+		reg = <0>;	/* Not address, just for index */
+		clock-frequency = <62500000>;
+		clock-output-names = "dummy_clock_apb";
+		clock-cells = <0>;
+	};
+
+	display-subsystem {
+		compatible = "verisilicon,display-subsystem";
+		ports = <&dpu_disp0>, <&dpu_disp1>;
+		status = "okay";
+	};
+
+
+	dpu-encoders {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		dpu_enc0: dpu-encoder@0 {
+			/* default encoder is DSI */
+			compatible = "verisilicon,dsi-encoder";
+			reg = <0>;
+			status = "disabled";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				/* input */
+				port@0 {
+					reg = <0>;
+
+					enc0_in: endpoint {
+						remote-endpoint = <&disp0_out>;
+					};
+				};
+			};
+		};
+
+		dpu_enc1: dpu-encoder@1 {
+			/* default encoder is DSI */
+			compatible = "verisilicon,dsi-encoder";
+			reg = <1>;
+			status = "disabled";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				/* input */
+				port@0 {
+					reg = <0>;
+
+					enc1_in: endpoint {
+						remote-endpoint = <&disp1_out>;
+					};
+				};
+			};
+		};
+	};
+
 	soc {
 		compatible = "simple-bus";
 		interrupt-parent = <&plic>;
@@ -272,7 +372,7 @@
 			compatible = "snps,dw-apb-uart";
 			reg = <0xff 0xe7014000 0x0 0x100>;
 			interrupts = <36 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_UART_SCLK>, <&clk CLK_UART0_PCLK>;
+			clocks = <&clk_old CLKGEN_UART0_SCLK>, <&clk_old CLKGEN_UART0_PCLK>;
 			clock-names = "baudclk", "apb_pclk";
 			reg-shift = <2>;
 			reg-io-width = <4>;
@@ -284,7 +384,7 @@
 			reg = <0xff 0xe7060000 0x0 0x2000>;
 			interrupts = <67 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "macirq";
-			clocks = <&clk CLK_GMAC_AXI>, <&clk CLK_GMAC1>;
+			clocks = <&clk_old CLKGEN_GMAC_AXI_ACLK>, <&clk_old CLKGEN_GMAC1_PCLK>;
 			clock-names = "stmmaceth", "pclk";
 			snps,pbl = <32>;
 			snps,fixed-burst;
@@ -306,7 +406,7 @@
 			reg = <0xff 0xe7070000 0x0 0x2000>;
 			interrupts = <66 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "macirq";
-			clocks = <&clk CLK_GMAC_AXI>, <&clk CLK_GMAC0>;
+			clocks = <&clk_old CLKGEN_GMAC_AXI_ACLK>, <&clk_old CLKGEN_GMAC0_PCLK>;
 			clock-names = "stmmaceth", "pclk";
 			snps,pbl = <32>;
 			snps,fixed-burst;
@@ -327,7 +427,7 @@
 			compatible = "thead,th1520-dwcmshc";
 			reg = <0xff 0xe7080000 0x0 0x10000>;
 			interrupts = <62 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_EMMC_SDIO>;
+			clocks = <&clk_old CLKGEN_EMMC_SDIO_REF_CLK>;
 			clock-names = "core";
 			status = "disabled";
 		};
@@ -336,7 +436,7 @@
 			compatible = "thead,th1520-dwcmshc";
 			reg = <0xff 0xe7090000 0x0 0x10000>;
 			interrupts = <64 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_EMMC_SDIO>;
+			clocks = <&clk_old CLKGEN_EMMC_SDIO_REF_CLK>;
 			clock-names = "core";
 			status = "disabled";
 		};
@@ -345,7 +445,7 @@
 			compatible = "thead,th1520-dwcmshc";
 			reg = <0xff 0xe70a0000 0x0 0x10000>;
 			interrupts = <71 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_EMMC_SDIO>;
+			clocks = <&clk_old CLKGEN_EMMC_SDIO_REF_CLK>;
 			clock-names = "core";
 			status = "disabled";
 		};
@@ -354,7 +454,7 @@
 			compatible = "snps,dw-apb-uart";
 			reg = <0xff 0xe7f00000 0x0 0x100>;
 			interrupts = <37 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_UART_SCLK>, <&clk CLK_UART1_PCLK>;
+			clocks = <&clk_old CLKGEN_UART1_SCLK>, <&clk_old CLKGEN_UART1_PCLK>;
 			clock-names = "baudclk", "apb_pclk";
 			reg-shift = <2>;
 			reg-io-width = <4>;
@@ -365,7 +465,7 @@
 			compatible = "snps,dw-apb-uart";
 			reg = <0xff 0xe7f04000 0x0 0x100>;
 			interrupts = <39 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_UART_SCLK>, <&clk CLK_UART3_PCLK>;
+			clocks = <&clk_old CLKGEN_UART3_SCLK>, <&clk_old CLKGEN_UART3_PCLK>;
 			clock-names = "baudclk", "apb_pclk";
 			reg-shift = <2>;
 			reg-io-width = <4>;
@@ -376,7 +476,7 @@
 			compatible = "thead,th1520-i2c", "snps,designware-i2c";
 			reg = <0xff 0xe7f20000 0x0 0x4000>;
 			interrupts = <44 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_I2C0>;
+			clocks = <&clk_old CLKGEN_I2C0_PCLK>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -386,7 +486,7 @@
 			compatible = "thead,th1520-i2c", "snps,designware-i2c";
 			reg = <0xff 0xe7f24000 0x0 0x4000>;
 			interrupts = <45 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_I2C1>;
+			clocks = <&clk_old CLKGEN_I2C1_PCLK>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -396,7 +496,7 @@
 			compatible = "thead,th1520-i2c", "snps,designware-i2c";
 			reg = <0xff 0xe7f28000 0x0 0x4000>;
 			interrupts = <48 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_I2C4>;
+			clocks = <&clk_old CLKGEN_I2C4_PCLK>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -407,7 +507,7 @@
 			reg = <0xff 0xe7f34000 0x0 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			clocks = <&clk CLK_GPIO2>;
+			clocks = <&clk_old CLKGEN_GPIO2_PCLK>;
 
 			gpio2: gpio-controller@0 {
 				compatible = "snps,dw-apb-gpio-port";
@@ -427,7 +527,7 @@
 			reg = <0xff 0xe7f38000 0x0 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			clocks = <&clk CLK_GPIO3>;
+			clocks = <&clk_old CLKGEN_GPIO3_PCLK>;
 
 			gpio3: gpio-controller@0 {
 				compatible = "snps,dw-apb-gpio-port";
@@ -445,7 +545,7 @@
 		padctrl1_apsys: pinctrl@ffe7f3c000 {
 			compatible = "thead,th1520-group2-pinctrl";
 			reg = <0xff 0xe7f3c000 0x0 0x1000>;
-			clocks = <&clk CLK_PADCTRL1>;
+			clocks = <&clk_old CLKGEN_PADCTRL1_APSYS_PCLK>;
 		};
 
 		gmac0_apb: syscon@ffec003000 {
@@ -463,7 +563,7 @@
 			reg = <0xff 0xec005000 0x0 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			clocks = <&clk CLK_GPIO0>;
+			clocks = <&clk_old CLKGEN_GPIO0_PCLK>;
 
 			gpio0: gpio-controller@0 {
 				compatible = "snps,dw-apb-gpio-port";
@@ -483,7 +583,7 @@
 			reg = <0xff 0xec006000 0x0 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			clocks = <&clk CLK_GPIO1>;
+			clocks = <&clk_old CLKGEN_GPIO1_PCLK>;
 
 			gpio1: gpio-controller@0 {
 				compatible = "snps,dw-apb-gpio-port";
@@ -501,14 +601,14 @@
 		padctrl0_apsys: pinctrl@ffec007000 {
 			compatible = "thead,th1520-group3-pinctrl";
 			reg = <0xff 0xec007000 0x0 0x1000>;
-			clocks = <&clk CLK_PADCTRL0>;
+			clocks = <&clk_old CLKGEN_PADCTRL0_APSYS_PCLK>;
 		};
 
 		i2c2: i2c@ffec00c000 {
 			compatible = "thead,th1520-i2c", "snps,designware-i2c";
 			reg = <0xff 0xec00c000 0x0 0x4000>;
 			interrupts = <46 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_I2C2>;
+			clocks = <&clk_old CLKGEN_I2C2_PCLK>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -518,7 +618,7 @@
 			compatible = "snps,dw-apb-uart";
 			reg = <0xff 0xec010000 0x0 0x4000>;
 			interrupts = <38 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_UART_SCLK>, <&clk CLK_UART2_PCLK>;
+			clocks = <&clk_old CLKGEN_UART2_SCLK>, <&clk_old CLKGEN_UART2_PCLK>;
 			clock-names = "baudclk", "apb_pclk";
 			reg-shift = <2>;
 			reg-io-width = <4>;
@@ -529,7 +629,7 @@
 			compatible = "thead,th1520-i2c", "snps,designware-i2c";
 			reg = <0xff 0xec014000 0x0 0x4000>;
 			interrupts = <47 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_I2C3>;
+			clocks = <&clk_old CLKGEN_I2C3_PCLK>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -565,18 +665,35 @@
 			};
 		};
 
-		clk: clock-controller@ffef010000 {
+		/*clk: clock-controller@ffef010000 {
 			compatible = "thead,th1520-clk-ap";
 			reg = <0xff 0xef010000 0x0 0x1000>;
 			clocks = <&osc>;
 			#clock-cells = <1>;
+		};*/
+
+		rc_24m: clock-rc-24m@13 {
+				compatible = "fixed-clock";
+				reg = <13>;
+				#clock-cells = <0>;
+				clock-frequency = <24000000>;
+				clock-output-names = "rc_24m";
+			};
+
+		clk_old: clock-old-controller@ffef010000 {
+			compatible = "thead,light-fm-ree-clk";
+			reg = <0xff 0xef010000 0x0 0x1000>;
+			#clock-cells = <1>;
+			clocks = <&osc_32k>, <&osc>, <&rc_24m>;
+			clock-names = "osc_32k", "osc", "rc_24m";
+			status = "okay";
 		};
 
 		dmac0: dma-controller@ffefc00000 {
 			compatible = "snps,axi-dma-1.01a";
 			reg = <0xff 0xefc00000 0x0 0x1000>;
 			interrupts = <27 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_PERI_APB_PCLK>, <&clk CLK_PERI_APB_PCLK>;
+			clocks = <&clk_old PERISYS_APB_PCLK>, <&clk_old PERISYS_APB_PCLK>;
 			clock-names = "core-clk", "cfgr-clk";
 			#dma-cells = <1>;
 			dma-channels = <4>;
@@ -591,7 +708,7 @@
 		timer0: timer@ffefc32000 {
 			compatible = "snps,dw-apb-timer";
 			reg = <0xff 0xefc32000 0x0 0x14>;
-			clocks = <&clk CLK_PERI_APB_PCLK>;
+			clocks = <&clk_old PERISYS_APB_PCLK>;
 			clock-names = "timer";
 			interrupts = <16 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
@@ -600,7 +717,7 @@
 		timer1: timer@ffefc32014 {
 			compatible = "snps,dw-apb-timer";
 			reg = <0xff 0xefc32014 0x0 0x14>;
-			clocks = <&clk CLK_PERI_APB_PCLK>;
+			clocks = <&clk_old PERISYS_APB_PCLK>;
 			clock-names = "timer";
 			interrupts = <17 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
@@ -609,7 +726,7 @@
 		timer2: timer@ffefc32028 {
 			compatible = "snps,dw-apb-timer";
 			reg = <0xff 0xefc32028 0x0 0x14>;
-			clocks = <&clk CLK_PERI_APB_PCLK>;
+			clocks = <&clk_old PERISYS_APB_PCLK>;
 			clock-names = "timer";
 			interrupts = <18 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
@@ -618,7 +735,7 @@
 		timer3: timer@ffefc3203c {
 			compatible = "snps,dw-apb-timer";
 			reg = <0xff 0xefc3203c 0x0 0x14>;
-			clocks = <&clk CLK_PERI_APB_PCLK>;
+			clocks = <&clk_old PERISYS_APB_PCLK>;
 			clock-names = "timer";
 			interrupts = <19 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
@@ -628,7 +745,7 @@
 			compatible = "snps,dw-apb-uart";
 			reg = <0xff 0xf7f08000 0x0 0x4000>;
 			interrupts = <40 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_UART_SCLK>, <&clk CLK_UART4_PCLK>;
+			clocks = <&clk_old CLKGEN_UART4_SCLK>, <&clk_old CLKGEN_UART4_PCLK>;
 			clock-names = "baudclk", "apb_pclk";
 			reg-shift = <2>;
 			reg-io-width = <4>;
@@ -639,7 +756,7 @@
 			compatible = "snps,dw-apb-uart";
 			reg = <0xff 0xf7f0c000 0x0 0x4000>;
 			interrupts = <41 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_UART_SCLK>, <&clk CLK_UART5_PCLK>;
+			clocks = <&clk_old CLKGEN_UART5_SCLK>, <&clk_old CLKGEN_UART5_PCLK>;
 			clock-names = "baudclk", "apb_pclk";
 			reg-shift = <2>;
 			reg-io-width = <4>;
@@ -650,7 +767,7 @@
 			compatible = "thead,th1520-i2c", "snps,designware-i2c";
 			reg = <0xff 0xf7f2c000 0x0 0x4000>;
 			interrupts = <49 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk CLK_I2C5>;
+			clocks = <&clk_old CLKGEN_I2C5_PCLK>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -659,7 +776,7 @@
 		timer4: timer@ffffc33000 {
 			compatible = "snps,dw-apb-timer";
 			reg = <0xff 0xffc33000 0x0 0x14>;
-			clocks = <&clk CLK_PERI_APB_PCLK>;
+			clocks = <&clk_old PERISYS_APB_PCLK>;
 			clock-names = "timer";
 			interrupts = <20 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
@@ -668,7 +785,7 @@
 		timer5: timer@ffffc33014 {
 			compatible = "snps,dw-apb-timer";
 			reg = <0xff 0xffc33014 0x0 0x14>;
-			clocks = <&clk CLK_PERI_APB_PCLK>;
+			clocks = <&clk_old PERISYS_APB_PCLK>;
 			clock-names = "timer";
 			interrupts = <21 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
@@ -677,7 +794,7 @@
 		timer6: timer@ffffc33028 {
 			compatible = "snps,dw-apb-timer";
 			reg = <0xff 0xffc33028 0x0 0x14>;
-			clocks = <&clk CLK_PERI_APB_PCLK>;
+			clocks = <&clk_old PERISYS_APB_PCLK>;
 			clock-names = "timer";
 			interrupts = <22 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
@@ -686,7 +803,7 @@
 		timer7: timer@ffffc3303c {
 			compatible = "snps,dw-apb-timer";
 			reg = <0xff 0xffc3303c 0x0 0x14>;
-			clocks = <&clk CLK_PERI_APB_PCLK>;
+			clocks = <&clk_old PERISYS_APB_PCLK>;
 			clock-names = "timer";
 			interrupts = <23 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
@@ -745,6 +862,109 @@
 				#interrupt-cells = <2>;
 				interrupts = <55 IRQ_TYPE_LEVEL_HIGH>;
 			};
+		};
+
+		hdmi_tx: dw-hdmi-tx@ffef540000 {
+			compatible = "thead,light-hdmi-tx";
+			reg = <0xff 0xef540000 0x0 0x40000>;
+			interrupt-parent = <&plic>;
+			interrupts = <111 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&vosys_clk_gate LIGHT_CLKGEN_HDMI_PCLK>,
+				 <&vosys_clk_gate LIGHT_CLKGEN_HDMI_SFR_CLK>,
+				 <&vosys_clk_gate LIGHT_CLKGEN_HDMI_CEC_CLK>,
+				 <&vosys_clk_gate LIGHT_CLKGEN_HDMI_PIXCLK>;
+			clock-names = "iahb", "isfr", "cec", "pixclk";
+			reg-io-width = <4>;
+			phy_version = <301>;
+			/* TODO: add phy property */
+			status = "disabled";
+		};
+
+		dpu: dc8200@ffef600000 {
+			compatible = "verisilicon,dc8200";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0xff 0xef600000 0x0 0x100>,
+			      <0xff 0xef600800 0x0 0x2000>,
+			      <0xff 0xef630010 0x0 0x60>;
+			interrupt-parent = <&plic>;
+			interrupts = <93 IRQ_TYPE_LEVEL_HIGH>;
+			vosys-regmap = <&vosys_reg>;
+			clocks = <&vosys_clk_gate LIGHT_CLKGEN_DPU_CCLK>,
+				 <&vosys_clk_gate LIGHT_CLKGEN_DPU_PIXCLK0>,
+				 <&vosys_clk_gate LIGHT_CLKGEN_DPU_PIXCLK1>,
+				 <&vosys_clk_gate LIGHT_CLKGEN_DPU_ACLK>,
+				 <&vosys_clk_gate LIGHT_CLKGEN_DPU_HCLK>,
+				 <&clk_old DPU0_PLL_DIV_CLK>,
+				 <&clk_old DPU1_PLL_DIV_CLK>,
+				 <&clk_old DPU0_PLL_FOUTPOSTDIV>,
+				 <&clk_old DPU1_PLL_FOUTPOSTDIV>;
+			clock-names = "core_clk", "pix_clk0", "pix_clk1",
+				      "axi_clk", "cfg_clk", "pixclk0",
+				      "pixclk1", "dpu0_pll_foutpostdiv",
+				      "dpu1_pll_foutpostdiv";
+			status = "disabled";
+
+			dpu_disp0: port@0 {
+				reg = <0>;
+
+				disp0_out: endpoint {
+					remote-endpoint = <&enc0_in>;
+				};
+			};
+
+			dpu_disp1: port@1 {
+				reg = <1>;
+
+				disp1_out: endpoint {
+					remote-endpoint = <&enc1_in>;
+				};
+			};
+		};
+
+		vosys_reg: vosys@ffef528000 {
+			compatible = "thead,light-vo-subsys", "syscon";
+			reg = <0xff 0xef528000 0x0 0x1000>;
+			status = "okay";
+		};
+
+		mbox_910t: mbox@ffffc38000 {
+		       compatible = "thead,light-mbox";
+		       reg = <0xff 0xffc38000 0x0 0x4000>,
+			     <0xff 0xffc44000 0x0 0x1000>,
+			     <0xff 0xffc4c000 0x0 0x1000>,
+			     <0xff 0xffc54000 0x0 0x1000>;
+		       reg-names = "local_base", "remote_icu0", "remote_icu1", "remote_icu2";
+		       interrupt-parent = <&plic>;
+		       interrupts = <28 IRQ_TYPE_LEVEL_HIGH>;
+		       clocks = <&dummy_clock_apb>;
+		       clock-names = "ipg";
+		       icu_cpu_id = <0>;
+		       #mbox-cells = <2>;
+		};
+
+		vosys_clk_gate: vosys-clk-gate@ffef528000 { /* VO_SYSREG_R */
+			compatible = "thead,vosys-gate-controller";
+			reg = <0xff 0xef528000 0x0 0x1000>;
+			#clock-cells = <1>;
+			vosys-regmap = <&vosys_reg>;
+			clocks = <&vosys_clk_gate LIGHT_CLKGEN_GPU_CORE_CLK>,
+				 <&vosys_clk_gate LIGHT_CLKGEN_GPU_CFG_ACLK>;
+			clock-names = "cclk", "aclk";
+			status = "okay";
+		};
+
+		gpu: gpu@13000000 {
+			compatible = "img,img-axe";
+			reg = <0xff 0xef400000 0x0 0x100000>;
+			interrupt-parent = <&plic>;
+			interrupts = <102 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&vosys_clk_gate LIGHT_CLKGEN_GPU_CORE_CLK>,
+				 <&vosys_clk_gate LIGHT_CLKGEN_GPU_CFG_ACLK>;
+			clock-names = "core", "sys";
+			power-domains = <&pd LIGHT_AON_GPU_PD>;
+			vosys-regmap = <&vosys_reg>;
+			status = "okay";
 		};
 	};
 };

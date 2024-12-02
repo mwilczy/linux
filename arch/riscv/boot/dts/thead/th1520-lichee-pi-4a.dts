@@ -122,6 +122,28 @@
 	};
 };
 
+&dpu {
+        status = "okay";
+};
+
+&disp1_out {
+	remote-endpoint = <&hdmi_tx_in>;
+};
+
+&hdmi_tx {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hdmi>;
+
+	port@0 {
+		/* input */
+		hdmi_tx_in: endpoint {
+			remote-endpoint = <&disp1_out>;
+		};
+	};
+};
+
+
 &i2c0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c0_pins>;
@@ -204,6 +226,49 @@
 			slew-rate = <0>;
 		};
 	};
+
+	/*pinctrl_hdmi: hdmigrp {
+		hdmi-pins {
+			pins = "HDMI_SCL", "HDMI_SDA", "HDMI_CEC";
+			function = "hdmi";
+			bias-disable;
+			slew-rate = <0>;
+		};
+
+	};*/
+
+	pinctrl_hdmi: hdmigrp {
+		hdmi_scl_pin: hdmi-scl {
+			pins = "HDMI_SCL";
+			function = "hdmi";
+			input-enable;
+			bias-disable;
+			drive-strength = <3>;
+			slew-rate = <0>;
+			input-schmitt-disable;
+		};
+
+		hdmi_sda_pin: hdmi-sda {
+			pins = "HDMI_SDA";
+			function = "hdmi";
+			input-enable;
+			bias-disable;
+			drive-strength = <3>;
+			slew-rate = <0>;
+			input-schmitt-disable;
+		};
+
+		hdmi_cec_pin: hdmi-cec {
+			pins = "HDMI_CEC";
+			function = "hdmi";
+			input-enable;
+			bias-disable;
+			drive-strength = <3>;
+			slew-rate = <0>;
+			input-schmitt-disable;
+		};
+	};
+
 
 	i2c3_pins: i2c3-0 {
 		i2c-pins {
