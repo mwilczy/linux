@@ -470,6 +470,159 @@ pvr_device_gpu_fini(struct pvr_device *pvr_dev)
 	}
 }
 
+#include <linux/regmap.h>
+#include <linux/delay.h>
+#include <linux/mfd/syscon.h>
+
+
+struct gpu_plat_if {
+	struct device *dev;
+	/* mutex protect for set power state */
+	struct mutex set_power_state;
+	struct clk *gpu_cclk;
+	struct clk *gpu_aclk;
+	struct regmap *vosys_regmap;
+};
+
+int thead_mfg_enable(struct gpu_plat_if *mfg)
+{
+	int ret;
+	int val;
+
+	ret = pm_runtime_get_sync(mfg->dev);
+	/* don't check ret > 0 here for pm status maybe ACTIVE */
+	if (ret < 0)
+		return ret;
+
+	if (mfg->gpu_aclk) {
+		ret = clk_prepare_enable(mfg->gpu_aclk);
+		if (ret) {
+			goto err_pm_runtime_put;
+		}
+	}
+
+	if (mfg->gpu_cclk) {
+		ret = clk_prepare_enable(mfg->gpu_cclk);
+		if (ret) {
+			clk_disable_unprepare(mfg->gpu_aclk);
+			goto err_pm_runtime_put;
+		}
+	}
+
+	regmap_read(mfg->vosys_regmap, 0x0, &val);
+	if (val) {
+		regmap_update_bits(mfg->vosys_regmap, 0x0, 3, 0);
+		regmap_read(mfg->vosys_regmap, 0x0, &val);
+		if (val) {
+			printk("[GPU_RST]"
+				"val is %x\r\n",
+				val);
+			clk_disable_unprepare(mfg->gpu_cclk);
+			clk_disable_unprepare(mfg->gpu_aclk);
+			goto err_pm_runtime_put;
+		}
+		udelay(1);
+	}
+	/* rst gpu clkgen */
+	regmap_update_bits(mfg->vosys_regmap, 0x0, 2, 2);
+	regmap_read(mfg->vosys_regmap, 0x0, &val);
+	if (!(val & 0x2)) {
+		printk("[GPU_CLK_RST]"
+			"val is %x\r\n",
+			val);
+		clk_disable_unprepare(mfg->gpu_cclk);
+		clk_disable_unprepare(mfg->gpu_aclk);
+		goto err_pm_runtime_put;
+	}
+	udelay(1);
+	/* rst gpu */
+	regmap_update_bits(mfg->vosys_regmap, 0x0, 1, 1);
+	regmap_read(mfg->vosys_regmap, 0x0, &val);
+	if (!(val & 0x1)) {
+		pr_info("[GPU_RST]"
+			"val is %x\r\n",
+			val);
+		clk_disable_unprepare(mfg->gpu_cclk);
+		clk_disable_unprepare(mfg->gpu_aclk);
+		goto err_pm_runtime_put;
+	}
+
+	return 0;
+err_pm_runtime_put:
+	pm_runtime_put_sync(mfg->dev);
+	return ret;
+}
+
+void thead_mfg_disable(struct gpu_plat_if *mfg)
+{
+	int val;
+	regmap_update_bits(mfg->vosys_regmap, 0x0, 3, 0);
+	regmap_read(mfg->vosys_regmap, 0x0, &val);
+	if (val) {
+		pr_info("[GPU_RST]"
+			"val is %x\r\n",
+			val);
+		return;
+	}
+
+	pm_runtime_put_sync(mfg->dev);
+}
+
+struct gpu_plat_if *dt_hw_init(struct device *dev)
+{
+	struct gpu_plat_if *mfg;
+
+	printk("gpu_plat_if_create Begin\n");
+
+	mfg = devm_kzalloc(dev, sizeof(*mfg), GFP_KERNEL);
+	if (!mfg)
+		return ERR_PTR(-ENOMEM);
+	mfg->dev = dev;
+
+	mfg->gpu_cclk = devm_clk_get(dev, "core");
+	if (IS_ERR(mfg->gpu_cclk)) {
+		dev_err(dev, "devm_clk_get cclk failed !!!\n");
+		pm_runtime_disable(dev);
+		return ERR_PTR(PTR_ERR(mfg->gpu_aclk));
+	}
+
+	mfg->gpu_aclk = devm_clk_get(dev, "sys");
+	if (IS_ERR(mfg->gpu_aclk)) {
+		dev_err(dev, "devm_clk_get aclk failed !!!\n");
+		pm_runtime_disable(dev);
+		return ERR_PTR(PTR_ERR(mfg->gpu_aclk));
+	}
+
+	mfg->vosys_regmap =
+		syscon_regmap_lookup_by_phandle(dev->of_node, "vosys-regmap");
+	if (IS_ERR(mfg->vosys_regmap)) {
+		dev_err(dev,
+			"syscon_regmap_lookup_by_phandle vosys-regmap failed !!!\n");
+		pm_runtime_disable(dev);
+		return ERR_PTR(PTR_ERR(mfg->vosys_regmap));
+	}
+
+	mutex_init(&mfg->set_power_state);
+
+	pm_runtime_enable(dev);
+
+	printk("gpu_plat_if_create End\n");
+
+	return mfg;
+}
+
+static void dump_regmap(struct regmap *regmap, unsigned int start, unsigned int end)
+{
+    unsigned int val;
+    unsigned int addr;
+
+    for (addr = start; addr <= end; addr += 4) {
+        regmap_read(regmap, addr, &val);
+        pr_info("Register 0x%08x: 0x%08x\n", addr, val);
+    }
+}
+
+
 /**
  * pvr_device_init() - Initialize a PowerVR device
  * @pvr_dev: Target PowerVR device.
@@ -495,6 +648,7 @@ pvr_device_init(struct pvr_device *pvr_dev)
 	struct drm_device *drm_dev = from_pvr_device(pvr_dev);
 	struct device *dev = drm_dev->dev;
 	int err;
+	struct gpu_plat_if *mfg;
 
 	/*
 	 * Setup device parameters. We do this first in case other steps
@@ -509,10 +663,11 @@ pvr_device_init(struct pvr_device *pvr_dev)
 	if (err)
 		return err;
 
-	/* Explicitly power the GPU so we can access control registers before the FW is booted. */
-	err = pm_runtime_resume_and_get(dev);
-	if (err)
-		return err;
+	mfg = dt_hw_init(dev);
+
+	err = thead_mfg_enable(mfg);
+
+	udelay(5);
 
 	/* Map the control registers into memory. */
 	err = pvr_device_reg_init(pvr_dev);
@@ -528,7 +683,7 @@ pvr_device_init(struct pvr_device *pvr_dev)
 	if (err)
 		goto err_device_gpu_fini;
 
-	pm_runtime_put(dev);
+	//pm_runtime_put(dev);
 
 	return 0;
 

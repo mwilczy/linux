@@ -399,8 +399,8 @@ fw_sysinit_init(void *cpu_ptr, void *priv)
 	fwif_sysinit->filter_flags = 0;
 	fwif_sysinit->hw_perf_filter = 0;
 	fwif_sysinit->firmware_perf = FW_PERF_CONF_NONE;
-	fwif_sysinit->initial_core_clock_speed = clock_speed_hz;
-	fwif_sysinit->active_pm_latency_ms = 0;
+	fwif_sysinit->initial_core_clock_speed = 792000000;
+	fwif_sysinit->active_pm_latency_ms = 10;
 	fwif_sysinit->gpio_validation_mode = ROGUE_FWIF_GPIO_VAL_OFF;
 	fwif_sysinit->firmware_started = false;
 	fwif_sysinit->marker_val = 1;
@@ -844,6 +844,745 @@ pvr_fw_cleanup(struct pvr_device *pvr_dev)
 	pvr_fw_object_destroy(fw_mem->data_obj);
 }
 
+void print_rogue_fwif_sysdata(struct rogue_fwif_sysdata *data)
+{
+	int i;
+
+	// Print individual variables
+	printk(KERN_INFO "rogue_fwif_sysdata:\n");
+	printk(KERN_INFO "  config_flags: 0x%x\n", data->config_flags);
+	printk(KERN_INFO "  config_flags_ext: 0x%x\n", data->config_flags_ext);
+	printk(KERN_INFO "  pow_state: %d\n", data->pow_state);
+	printk(KERN_INFO "  hw_perf_ridx: %u\n", data->hw_perf_ridx);
+	printk(KERN_INFO "  hw_perf_widx: %u\n", data->hw_perf_widx);
+	printk(KERN_INFO "  hw_perf_wrap_count: %u\n",
+	       data->hw_perf_wrap_count);
+	printk(KERN_INFO "  hw_perf_size: %u\n", data->hw_perf_size);
+	printk(KERN_INFO "  hw_perf_drop_count: %u\n",
+	       data->hw_perf_drop_count);
+	printk(KERN_INFO "  hw_perf_ut: %u\n", data->hw_perf_ut);
+	printk(KERN_INFO "  first_drop_ordinal: %u\n",
+	       data->first_drop_ordinal);
+	printk(KERN_INFO "  last_drop_ordinal: %u\n", data->last_drop_ordinal);
+
+	// Print os_runtime_flags_mirror array
+	printk(KERN_INFO "  os_runtime_flags_mirror:\n");
+	for (i = 0; i < ROGUE_FW_MAX_NUM_OS; i++) {
+		printk(KERN_INFO "    os_runtime_flags_mirror[%d]: %u\n", i,
+		       data->os_runtime_flags_mirror[i]);
+	}
+
+	// Print fault_info array
+	printk(KERN_INFO "  fault_info:\n");
+	for (i = 0; i < ROGUE_FWIF_FWFAULTINFO_MAX; i++) {
+		printk(KERN_INFO
+		       "    fault_info[%d]: <Fill details of struct here>\n",
+		       i);
+	}
+
+	printk(KERN_INFO "  fw_faults: %u\n", data->fw_faults);
+
+	// Print cr_poll_addr, cr_poll_mask, cr_poll_count arrays
+	printk(KERN_INFO "  cr_poll_addr:\n");
+	for (i = 0; i < MAX_THREAD_NUM; i++) {
+		printk(KERN_INFO "    cr_poll_addr[%d]: 0x%x\n", i,
+		       data->cr_poll_addr[i]);
+	}
+
+	printk(KERN_INFO "  cr_poll_mask:\n");
+	for (i = 0; i < MAX_THREAD_NUM; i++) {
+		printk(KERN_INFO "    cr_poll_mask[%d]: 0x%x\n", i,
+		       data->cr_poll_mask[i]);
+	}
+
+	printk(KERN_INFO "  cr_poll_count:\n");
+	for (i = 0; i < MAX_THREAD_NUM; i++) {
+		printk(KERN_INFO "    cr_poll_count[%d]: %u\n", i,
+		       data->cr_poll_count[i]);
+	}
+
+	printk(KERN_INFO "  start_idle_time: %llu\n", data->start_idle_time);
+
+#if defined(SUPPORT_ROGUE_FW_STATS_FRAMEWORK)
+	printk(KERN_INFO "  fw_stats_buf:\n");
+	for (i = 0; i < ROGUE_FWIF_STATS_FRAMEWORK_MAX;
+	     i += ROGUE_FWIF_STATS_FRAMEWORK_LINESIZE) {
+		printk(KERN_INFO "    fw_stats_buf[%d]: 0x%x\n", i,
+		       data->fw_stats_buf[i]);
+	}
+#endif
+
+	printk(KERN_INFO "  hwr_state_flags: 0x%x\n", data->hwr_state_flags);
+
+	printk(KERN_INFO "  hwr_recovery_flags:\n");
+	for (i = 0; i < PVR_FWIF_DM_MAX; i++) {
+		printk(KERN_INFO "    hwr_recovery_flags[%d]: 0x%x\n", i,
+		       data->hwr_recovery_flags[i]);
+	}
+
+	printk(KERN_INFO "  fw_sys_data_flags: 0x%x\n",
+	       data->fw_sys_data_flags);
+	printk(KERN_INFO "  mc_config: 0x%x\n", data->mc_config);
+}
+
+void print_rogue_fwif_osdata(struct rogue_fwif_osdata *data)
+{
+	int i;
+
+	// Print individual variables
+	printk(KERN_INFO "rogue_fwif_osdata:\n");
+	printk(KERN_INFO "  fw_os_config_flags: 0x%x\n",
+	       data->fw_os_config_flags);
+	printk(KERN_INFO "  fw_sync_check_mark: %u\n",
+	       data->fw_sync_check_mark);
+	printk(KERN_INFO "  host_sync_check_mark: %u\n",
+	       data->host_sync_check_mark);
+	printk(KERN_INFO "  forced_updates_requested: %u\n",
+	       data->forced_updates_requested);
+	printk(KERN_INFO "  slr_log_wp: %u\n", data->slr_log_wp);
+
+	// Print the slr_log_first entry
+	printk(KERN_INFO "  slr_log_first:\n");
+	printk(KERN_INFO "    timestamp: %llu\n",
+	       data->slr_log_first.timestamp);
+	printk(KERN_INFO "    fw_ctx_addr: 0x%x\n",
+	       data->slr_log_first.fw_ctx_addr);
+	printk(KERN_INFO "    num_ufos: %u\n", data->slr_log_first.num_ufos);
+	printk(KERN_INFO "    ccb_name: %s\n", data->slr_log_first.ccb_name);
+
+	// Print the slr_log array
+	printk(KERN_INFO "  slr_log:\n");
+	for (i = 0; i < PVR_SLR_LOG_ENTRIES; i++) {
+		printk(KERN_INFO "    slr_log[%d]:\n", i);
+		printk(KERN_INFO "      timestamp: %llu\n",
+		       data->slr_log[i].timestamp);
+		printk(KERN_INFO "      fw_ctx_addr: 0x%x\n",
+		       data->slr_log[i].fw_ctx_addr);
+		printk(KERN_INFO "      num_ufos: %u\n",
+		       data->slr_log[i].num_ufos);
+		printk(KERN_INFO "      ccb_name: %s\n",
+		       data->slr_log[i].ccb_name);
+	}
+
+	printk(KERN_INFO "  last_forced_update_time: %llu\n",
+	       data->last_forced_update_time);
+
+	// Print the interrupt_count array
+	printk(KERN_INFO "  interrupt_count:\n");
+	for (i = 0; i < MAX_THREAD_NUM; i++) {
+		printk(KERN_INFO "    interrupt_count[%d]: %u\n", i,
+		       data->interrupt_count[i]);
+	}
+
+	printk(KERN_INFO "  kccb_cmds_executed: %u\n",
+	       data->kccb_cmds_executed);
+	printk(KERN_INFO "  power_sync_fw_addr: 0x%x\n",
+	       data->power_sync_fw_addr);
+	printk(KERN_INFO "  fw_os_data_flags: 0x%x\n", data->fw_os_data_flags);
+	printk(KERN_INFO "  padding: 0x%x\n", data->padding);
+}
+
+void print_rogue_cr_clk_status(struct pvr_device *pvr_dev)
+{
+	u64 clk_status = pvr_cr_read64(pvr_dev, ROGUE_CR_CLK_STATUS);
+
+	printk(KERN_INFO "ROGUE_CR_CLK_STATUS Register: 0x%016llx\n",
+	       clk_status);
+
+	// Decode and print each field based on the defined shifts and clear masks
+
+	printk(KERN_INFO "MCU_FBTC: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_MCU_FBTC_RUNNING) ? "RUNNING" :
+								     "GATED");
+
+	printk(KERN_INFO "BIF_TEXAS: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_BIF_TEXAS_RUNNING) ?
+		       "RUNNING" :
+		       "GATED");
+
+	printk(KERN_INFO "IPP: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_IPP_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "FBC: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_FBC_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "FBDC: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_FBDC_RUNNING) ? "RUNNING" :
+								 "GATED");
+
+	printk(KERN_INFO "FB_TLCACHE: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_FB_TLCACHE_RUNNING) ?
+		       "RUNNING" :
+		       "GATED");
+
+	printk(KERN_INFO "USCS: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_USCS_RUNNING) ? "RUNNING" :
+								 "GATED");
+
+	printk(KERN_INFO "PBE: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_PBE_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "MCU_L1: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_MCU_L1_RUNNING) ? "RUNNING" :
+								   "GATED");
+
+	printk(KERN_INFO "CDM: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_CDM_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "SIDEKICK: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_SIDEKICK_RUNNING) ? "RUNNING" :
+								     "GATED");
+
+	printk(KERN_INFO "BIF_SIDEKICK: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_BIF_SIDEKICK_RUNNING) ?
+		       "RUNNING" :
+		       "GATED");
+
+	printk(KERN_INFO "BIF: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_BIF_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "TPU_MCU_DEMUX: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_TPU_MCU_DEMUX_RUNNING) ?
+		       "RUNNING" :
+		       "GATED");
+
+	printk(KERN_INFO "MCU_L0: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_MCU_L0_RUNNING) ? "RUNNING" :
+								   "GATED");
+
+	printk(KERN_INFO "TPU: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_TPU_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "USC: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_USC_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "TLA: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_TLA_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "SLC: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_SLC_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "UVS: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_UVS_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "PDS: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_PDS_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "VDM: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_VDM_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "PM: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_PM_RUNNING) ? "RUNNING" :
+							       "GATED");
+
+	printk(KERN_INFO "GPP: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_GPP_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "TE: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_TE_RUNNING) ? "RUNNING" :
+							       "GATED");
+
+	printk(KERN_INFO "TSP: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_TSP_RUNNING) ? "RUNNING" :
+								"GATED");
+
+	printk(KERN_INFO "ISP: %s\n",
+	       (clk_status & ROGUE_CR_CLK_STATUS_ISP_RUNNING) ? "RUNNING" :
+								"GATED");
+}
+
+void print_rogue_cr_event_status(struct pvr_device *pvr_dev)
+{
+	u32 event_status = pvr_cr_read32(pvr_dev, ROGUE_CR_EVENT_STATUS);
+
+	printk(KERN_INFO "ROGUE_CR_EVENT_STATUS Register: 0x%08x\n",
+	       event_status);
+
+	// Decode and print each field based on the defined shifts and enable masks
+
+	printk(KERN_INFO "TDM_FENCE_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_TDM_FENCE_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "TDM_BUFFER_STALL: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_TDM_BUFFER_STALL_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "COMPUTE_SIGNAL_FAILURE: %s\n",
+	       (event_status &
+		ROGUE_CR_EVENT_STATUS_COMPUTE_SIGNAL_FAILURE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "DPX_OUT_OF_MEMORY: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_DPX_OUT_OF_MEMORY_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "DPX_MMU_PAGE_FAULT: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_DPX_MMU_PAGE_FAULT_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "RPM_OUT_OF_MEMORY: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_RPM_OUT_OF_MEMORY_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "FBA_FC3_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_FBA_FC3_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "FBA_FC2_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_FBA_FC2_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "FBA_FC1_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_FBA_FC1_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "FBA_FC0_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_FBA_FC0_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "RDM_FC3_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_RDM_FC3_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "RDM_FC2_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_RDM_FC2_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "RDM_FC1_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_RDM_FC1_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "RDM_FC0_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_RDM_FC0_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "SHG_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_SHG_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "COMPUTE_BUFFER_STALL: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_COMPUTE_BUFFER_STALL_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "USC_TRIGGER: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_USC_TRIGGER_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "ZLS_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_ZLS_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "GPIO_ACK: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_GPIO_ACK_EN) ? "ENABLED" :
+								    "DISABLED");
+
+	printk(KERN_INFO "GPIO_REQ: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_GPIO_REQ_EN) ? "ENABLED" :
+								    "DISABLED");
+
+	printk(KERN_INFO "POWER_ABORT: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_POWER_ABORT_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "POWER_COMPLETE: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_POWER_COMPLETE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "MMU_PAGE_FAULT: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_MMU_PAGE_FAULT_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "PM_3D_MEM_FREE: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_PM_3D_MEM_FREE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "PM_OUT_OF_MEMORY: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_PM_OUT_OF_MEMORY_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "TA_TERMINATE: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_TA_TERMINATE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "TA_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_TA_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "ISP_END_MACROTILE: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_ISP_END_MACROTILE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "PIXELBE_END_RENDER: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_PIXELBE_END_RENDER_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "COMPUTE_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_COMPUTE_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "KERNEL_FINISHED: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_KERNEL_FINISHED_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "TLA_COMPLETE: %s\n",
+	       (event_status & ROGUE_CR_EVENT_STATUS_TLA_COMPLETE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+}
+
+void print_rogue_cr_soft_reset(struct pvr_device *pvr_dev)
+{
+	u64 soft_reset = pvr_cr_read64(pvr_dev, ROGUE_CR_SOFT_RESET);
+
+	printk(KERN_INFO "ROGUE_CR_SOFT_RESET Register: 0x%016llx\n",
+	       soft_reset);
+
+	// Decode and print each field based on the defined shifts and enable masks
+	printk(KERN_INFO "PHANTOM3_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_PHANTOM3_CORE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "PHANTOM2_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_PHANTOM2_CORE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "BERNADO2_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_BERNADO2_CORE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "JONES_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_JONES_CORE_EN) ? "ENABLED" :
+								  "DISABLED");
+
+	printk(KERN_INFO "TILING_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_TILING_CORE_EN) ? "ENABLED" :
+								   "DISABLED");
+
+	printk(KERN_INFO "TE3: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_TE3_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "VCE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_VCE_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "VBS: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_VBS_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "DPX1_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_DPX1_CORE_EN) ? "ENABLED" :
+								 "DISABLED");
+
+	printk(KERN_INFO "DPX0_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_DPX0_CORE_EN) ? "ENABLED" :
+								 "DISABLED");
+
+	printk(KERN_INFO "FBA: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_FBA_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "FB_CDC: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_FB_CDC_EN) ? "ENABLED" :
+							      "DISABLED");
+
+	printk(KERN_INFO "SH: %s\n", (soft_reset & ROGUE_CR_SOFT_RESET_SH_EN) ?
+					     "ENABLED" :
+					     "DISABLED");
+
+	printk(KERN_INFO "VRDM: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_VRDM_EN) ? "ENABLED" :
+							    "DISABLED");
+
+	printk(KERN_INFO "MCU_FBTC: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_MCU_FBTC_EN) ? "ENABLED" :
+								"DISABLED");
+
+	printk(KERN_INFO "PHANTOM1_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_PHANTOM1_CORE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "PHANTOM0_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_PHANTOM0_CORE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "BERNADO1_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_BERNADO1_CORE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "BERNADO0_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_BERNADO0_CORE_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "IPP: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_IPP_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "BIF_TEXAS: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_BIF_TEXAS_EN) ? "ENABLED" :
+								 "DISABLED");
+
+	printk(KERN_INFO "TORNADO_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_TORNADO_CORE_EN) ? "ENABLED" :
+								    "DISABLED");
+
+	printk(KERN_INFO "DUST_H_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_DUST_H_CORE_EN) ? "ENABLED" :
+								   "DISABLED");
+
+	printk(KERN_INFO "DUST_G_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_DUST_G_CORE_EN) ? "ENABLED" :
+								   "DISABLED");
+
+	printk(KERN_INFO "DUST_F_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_DUST_F_CORE_EN) ? "ENABLED" :
+								   "DISABLED");
+
+	printk(KERN_INFO "DUST_E_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_DUST_E_CORE_EN) ? "ENABLED" :
+								   "DISABLED");
+
+	printk(KERN_INFO "DUST_D_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_DUST_D_CORE_EN) ? "ENABLED" :
+								   "DISABLED");
+
+	printk(KERN_INFO "DUST_C_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_DUST_C_CORE_EN) ? "ENABLED" :
+								   "DISABLED");
+
+	printk(KERN_INFO "MMU: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_MMU_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "BIF1: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_BIF1_EN) ? "ENABLED" :
+							    "DISABLED");
+
+	printk(KERN_INFO "GARTEN: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_GARTEN_EN) ? "ENABLED" :
+							      "DISABLED");
+
+	printk(KERN_INFO "RASCAL_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_RASCAL_CORE_EN) ? "ENABLED" :
+								   "DISABLED");
+
+	printk(KERN_INFO "DUST_B_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_DUST_B_CORE_EN) ? "ENABLED" :
+								   "DISABLED");
+
+	printk(KERN_INFO "DUST_A_CORE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_DUST_A_CORE_EN) ? "ENABLED" :
+								   "DISABLED");
+
+	printk(KERN_INFO "FB_TLCACHE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_FB_TLCACHE_EN) ? "ENABLED" :
+								  "DISABLED");
+
+	printk(KERN_INFO "SLC: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_SLC_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "TLA: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_TLA_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "UVS: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_UVS_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "TE: %s\n", (soft_reset & ROGUE_CR_SOFT_RESET_TE_EN) ?
+					     "ENABLED" :
+					     "DISABLED");
+
+	printk(KERN_INFO "GPP: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_GPP_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "FBDC: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_FBDC_EN) ? "ENABLED" :
+							    "DISABLED");
+
+	printk(KERN_INFO "FBC: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_FBC_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "PM: %s\n", (soft_reset & ROGUE_CR_SOFT_RESET_PM_EN) ?
+					     "ENABLED" :
+					     "DISABLED");
+
+	printk(KERN_INFO "PBE: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_PBE_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "USC_SHARED: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_USC_SHARED_EN) ? "ENABLED" :
+								  "DISABLED");
+
+	printk(KERN_INFO "MCU_L1: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_MCU_L1_EN) ? "ENABLED" :
+							      "DISABLED");
+
+	printk(KERN_INFO "BIF: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_BIF_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "CDM: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_CDM_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "VDM: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_VDM_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "TESS: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_TESS_EN) ? "ENABLED" :
+							    "DISABLED");
+
+	printk(KERN_INFO "PDS: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_PDS_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "ISP: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_ISP_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "TSP: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_TSP_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "SYSARB: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_SYSARB_EN) ? "ENABLED" :
+							      "DISABLED");
+
+	printk(KERN_INFO "TPU_MCU_DEMUX: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_TPU_MCU_DEMUX_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "MCU_L0: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_MCU_L0_EN) ? "ENABLED" :
+							      "DISABLED");
+
+	printk(KERN_INFO "TPU: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_TPU_EN) ? "ENABLED" :
+							   "DISABLED");
+
+	printk(KERN_INFO "USC: %s\n",
+	       (soft_reset & ROGUE_CR_SOFT_RESET_USC_EN) ? "ENABLED" :
+							   "DISABLED");
+}
+
+void print_rogue_cr_soft_reset2(struct pvr_device *pvr_dev)
+{
+	u32 soft_reset2 = pvr_cr_read32(pvr_dev, ROGUE_CR_SOFT_RESET2);
+
+	printk(KERN_INFO "ROGUE_CR_SOFT_RESET2 Register: 0x%08x\n",
+	       soft_reset2);
+
+	// Decode and print each field based on the defined shifts and enable masks
+    printk(KERN_INFO "SPFILTER: %s\n",
+           (soft_reset2 & (1U << ROGUE_CR_SOFT_RESET2_SPFILTER_SHIFT)) ? "ENABLED" : "DISABLED");
+
+	printk(KERN_INFO "TDM: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_TDM_EN) ? "ENABLED" :
+							     "DISABLED");
+
+	printk(KERN_INFO "ASTC: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_ASTC_EN) ? "ENABLED" :
+							      "DISABLED");
+
+	printk(KERN_INFO "BLACKPEARL: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_BLACKPEARL_EN) ? "ENABLED" :
+								    "DISABLED");
+
+	printk(KERN_INFO "USCPS: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_USCPS_EN) ? "ENABLED" :
+							       "DISABLED");
+
+	printk(KERN_INFO "IPF: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_IPF_EN) ? "ENABLED" :
+							     "DISABLED");
+
+	printk(KERN_INFO "GEOMETRY: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_GEOMETRY_EN) ? "ENABLED" :
+								  "DISABLED");
+
+	printk(KERN_INFO "USC_SHARED: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_USC_SHARED_EN) ? "ENABLED" :
+								    "DISABLED");
+
+	printk(KERN_INFO "PDS_SHARED: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_PDS_SHARED_EN) ? "ENABLED" :
+								    "DISABLED");
+
+	printk(KERN_INFO "BIF_BLACKPEARL: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_BIF_BLACKPEARL_EN) ?
+		       "ENABLED" :
+		       "DISABLED");
+
+	printk(KERN_INFO "PIXEL: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_PIXEL_EN) ? "ENABLED" :
+							       "DISABLED");
+
+	printk(KERN_INFO "CDM: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_CDM_EN) ? "ENABLED" :
+							     "DISABLED");
+
+	printk(KERN_INFO "VERTEX: %s\n",
+	       (soft_reset2 & ROGUE_CR_SOFT_RESET2_VERTEX_EN) ? "ENABLED" :
+								"DISABLED");
+}
+
 /**
  * pvr_wait_for_fw_boot() - Wait for firmware to finish booting
  * @pvr_dev: Target PowerVR device.
@@ -852,6 +1591,10 @@ pvr_fw_cleanup(struct pvr_device *pvr_dev)
  *  * 0 on success, or
  *  * -%ETIMEDOUT if firmware fails to boot within timeout.
  */
+
+#include "pvr_fw_mips.h"
+ 
+
 int
 pvr_wait_for_fw_boot(struct pvr_device *pvr_dev)
 {
@@ -862,6 +1605,24 @@ pvr_wait_for_fw_boot(struct pvr_device *pvr_dev)
 		if (READ_ONCE(fw_dev->fwif_sysinit->firmware_started))
 			return 0;
 	}
+
+	//print_rogue_fwif_sysdata(fw_dev->fwif_sysdata);
+
+	//print_rogue_fwif_osdata(fw_dev->fwif_osdata);
+
+	//print_rogue_cr_clk_status(pvr_dev);
+
+	//print_rogue_cr_event_status(pvr_dev);
+
+	//print_rogue_cr_soft_reset(pvr_dev);
+
+	//print_rogue_cr_soft_reset2(pvr_dev);
+
+	//printk("Printing mips state\n");
+	//print_rogue_mips_state();
+
+	//printk("Printing stack after trying to execute\n");
+	//pvr_mips_print_stack();
 
 	return -ETIMEDOUT;
 }

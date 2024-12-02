@@ -10,6 +10,9 @@
 #include <linux/math.h>
 #include <linux/types.h>
 
+void print_rogue_mips_state(void);
+int pvr_mips_print_stack(void);
+
 /* Forward declaration from pvr_gem.h. */
 struct pvr_gem_object;
 

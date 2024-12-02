@@ -1417,11 +1417,11 @@ pvr_probe(struct platform_device *plat_dev)
 	if (err)
 		goto err_context_fini;
 
-	devm_pm_runtime_enable(&plat_dev->dev);
-	pm_runtime_mark_last_busy(&plat_dev->dev);
+	//devm_pm_runtime_enable(&plat_dev->dev);
+	//pm_runtime_mark_last_busy(&plat_dev->dev);
 
-	pm_runtime_set_autosuspend_delay(&plat_dev->dev, 50);
-	pm_runtime_use_autosuspend(&plat_dev->dev);
+	//pm_runtime_set_autosuspend_delay(&plat_dev->dev, 50);
+	//pm_runtime_use_autosuspend(&plat_dev->dev);
 	pvr_watchdog_init(pvr_dev);
 
 	err = pvr_device_init(pvr_dev);
@@ -1488,11 +1488,40 @@ static struct platform_driver pvr_driver = {
 	.remove = pvr_remove,
 	.driver = {
 		.name = PVR_DRIVER_NAME,
-		.pm = &pvr_pm_ops,
+		//.pm = &pvr_pm_ops,
 		.of_match_table = dt_match,
 	},
 };
-module_platform_driver(pvr_driver);
+//module_platform_driver(pvr_driver);
+
+
+// this is supposed to delay the driver probe,
+// so it won't try to take the firmware from the
+// initrd, but rather from the rootfs
+static struct delayed_work my_driver_work;
+
+static void my_driver_work_func(struct work_struct *work) {
+    pr_info("Registering my driver after delay\n");
+    platform_driver_register(&pvr_driver);
+}
+
+static int __init my_driver_late_init(void) {
+    int delay_in_seconds = 10;
+    pr_info("Scheduling my driver registration in %d seconds\n", delay_in_seconds);
+    INIT_DELAYED_WORK(&my_driver_work, my_driver_work_func);
+    schedule_delayed_work(&my_driver_work, delay_in_seconds * HZ);
+    return 0;
+}
+
+static void __exit my_driver_exit(void) {
+    cancel_delayed_work_sync(&my_driver_work);
+    platform_driver_unregister(&pvr_driver);
+}
+
+
+late_initcall(my_driver_late_init);
+module_exit(my_driver_exit);
+
 
 MODULE_AUTHOR("Imagination Technologies Ltd.");
 MODULE_DESCRIPTION(PVR_DRIVER_DESC);
