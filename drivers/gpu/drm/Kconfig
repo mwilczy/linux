@@ -421,6 +421,8 @@ source "drivers/gpu/drm/solomon/Kconfig"
 
 source "drivers/gpu/drm/sprd/Kconfig"
 
+source "drivers/gpu/drm/verisilicon/Kconfig"
+
 source "drivers/gpu/drm/imagination/Kconfig"
 
 config DRM_HYPERV

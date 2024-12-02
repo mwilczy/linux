@@ -16,6 +16,7 @@
 #include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/dma-mapping.h>
 #include <linux/spinlock.h>
@@ -141,6 +142,8 @@ struct dw_hdmi {
 	struct clk *isfr_clk;
 	struct clk *iahb_clk;
 	struct clk *cec_clk;
+	struct clk *pix_clk;
+	struct clk *i2s_clk;
 	struct dw_hdmi_i2c *i2c;
 
 	struct hdmi_data_info hdmi_data;
@@ -676,10 +679,13 @@ static void hdmi_set_clk_regenerator(struct dw_hdmi *hdmi,
 		cts = 0;
 	}
 
+	hdmi->audio_enable = true;
+
 	spin_lock_irq(&hdmi->audio_lock);
 	hdmi->audio_n = n;
 	hdmi->audio_cts = cts;
 	hdmi_set_cts_n(hdmi, cts, hdmi->audio_enable ? n : 0);
+	hdmi_writeb(hdmi, 0x4, HDMI_AUD_INPUTCLKFS);
 	spin_unlock_irq(&hdmi->audio_lock);
 }
 
@@ -1652,6 +1658,7 @@ static int hdmi_phy_configure(struct dw_hdmi *hdmi,
 	if (ret) {
 		dev_err(hdmi->dev, "PHY configuration failed (clock %lu)\n",
 			mpixelclock);
+		dump_stack();
 		return ret;
 	}
 
@@ -2096,6 +2103,7 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 			 * Source Devices compliant shall set the
 			 * Source Version = 1.
 			 */
+			mdelay(60);
 			drm_scdc_readb(hdmi->ddc, SCDC_SINK_VERSION,
 				       &bytes);
 			drm_scdc_writeb(hdmi->ddc, SCDC_SOURCE_VERSION,
@@ -2166,6 +2174,7 @@ static void dw_hdmi_enable_video_path(struct dw_hdmi *hdmi)
 	hdmi_writeb(hdmi, 0x21, HDMI_FC_CH2PREAM);
 
 	/* Enable pixel clock and tmds data path */
+#if 0
 	hdmi->mc_clkdis |= HDMI_MC_CLKDIS_HDCPCLK_DISABLE |
 			   HDMI_MC_CLKDIS_CSCCLK_DISABLE |
 			   HDMI_MC_CLKDIS_AUDCLK_DISABLE |
@@ -2191,6 +2200,8 @@ static void dw_hdmi_enable_video_path(struct dw_hdmi *hdmi)
 		hdmi_writeb(hdmi, HDMI_MC_FLOWCTRL_FEED_THROUGH_OFF_CSC_BYPASS,
 			    HDMI_MC_FLOWCTRL);
 	}
+#endif
+
 }
 
 /* Workaround to clear the overflow condition */
@@ -2959,6 +2970,7 @@ static void dw_hdmi_bridge_atomic_disable(struct drm_bridge *bridge,
 	dw_hdmi_update_phy_mask(hdmi);
 	handle_plugged_change(hdmi, false);
 	mutex_unlock(&hdmi->mutex);
+	pm_runtime_put(hdmi->dev);
 }
 
 static void dw_hdmi_bridge_atomic_enable(struct drm_bridge *bridge,
@@ -2970,6 +2982,7 @@ static void dw_hdmi_bridge_atomic_enable(struct drm_bridge *bridge,
 
 	connector = drm_atomic_get_new_connector_for_encoder(state,
 							     bridge->encoder);
+	pm_runtime_get_sync(hdmi->dev);
 
 	mutex_lock(&hdmi->mutex);
 	hdmi->disabled = false;
@@ -3346,7 +3359,7 @@ struct dw_hdmi *dw_hdmi_probe(struct platform_device *pdev,
 	hdmi->disabled = true;
 	hdmi->rxsense = true;
 	hdmi->phy_mask = (u8)~(HDMI_PHY_HPD | HDMI_PHY_RX_SENSE);
-	hdmi->mc_clkdis = 0x7f;
+	hdmi->mc_clkdis = 0x0;
 	hdmi->last_connector_result = connector_status_disconnected;
 
 	mutex_init(&hdmi->mutex);
@@ -3449,6 +3462,20 @@ struct dw_hdmi *dw_hdmi_probe(struct platform_device *pdev,
 				ret);
 			goto err_iahb;
 		}
+	}
+
+	hdmi->pix_clk = devm_clk_get(hdmi->dev, "pixclk");
+	if (IS_ERR(hdmi->pix_clk)) {
+		ret = PTR_ERR(hdmi->pix_clk);
+		dev_err(hdmi->dev, "Unable to get HDMI pix clk: %d\n", ret);
+		goto err_iahb;
+	}
+
+	hdmi->i2s_clk = devm_clk_get_optional(hdmi->dev, "i2s");
+	if (IS_ERR(hdmi->i2s_clk)) {
+		ret = PTR_ERR(hdmi->i2s_clk);
+		dev_err(hdmi->dev, "Unable to get HDMI i2s clk: %d\n", ret);
+		goto err_iahb;
 	}
 
 	/* Product and revision IDs */
@@ -3673,6 +3700,24 @@ void dw_hdmi_resume(struct dw_hdmi *hdmi)
 	dw_hdmi_init_hw(hdmi);
 }
 EXPORT_SYMBOL_GPL(dw_hdmi_resume);
+
+#ifdef CONFIG_PM
+int dw_hdmi_runtime_suspend(struct dw_hdmi *hdmi)
+{
+	clk_disable_unprepare(hdmi->pix_clk);
+	clk_disable_unprepare(hdmi->cec_clk);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dw_hdmi_runtime_suspend);
+
+int dw_hdmi_runtime_resume(struct dw_hdmi *hdmi)
+{
+	clk_prepare_enable(hdmi->cec_clk);
+	clk_prepare_enable(hdmi->pix_clk);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dw_hdmi_runtime_resume);
+#endif
 
 MODULE_AUTHOR("Sascha Hauer <s.hauer@pengutronix.de>");
 MODULE_AUTHOR("Andy Yan <andy.yan@rock-chips.com>");
