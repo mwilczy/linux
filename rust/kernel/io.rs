@@ -7,6 +7,7 @@
 use crate::error::{code::EINVAL, Result};
 use crate::{bindings, build_assert, ffi::c_void};
 
+pub mod mem;
 pub mod resource;
 
 /// Raw representation of an MMIO region.
