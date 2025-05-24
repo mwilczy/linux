@@ -755,4 +755,12 @@ config PWM_XILINX
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-xilinx.
 
+ config RUST_PWM_ABSTRACTIONS
+	bool "Rust PWM abstractions support"
+	depends on RUST
+	depends on PWM=y
+	help
+	  Adds support needed for PWM drivers written in Rust. It provides a
+          wrapper around the C pwm core.
+
 endif
