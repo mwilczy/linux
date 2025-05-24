@@ -684,6 +684,12 @@ config PWM_TEGRA
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-tegra.
 
+config PWM_TH1520_RUST
+	tristate "TH1520 PWM support (Rust)"
+	depends on RUST_PWM_ABSTRACTIONS
+	help
+	  Generic PWM framework driver for TH1520 SoC.
+
 config PWM_TIECAP
 	tristate "ECAP PWM support"
 	depends on ARCH_OMAP2PLUS || ARCH_DAVINCI_DA8XX || ARCH_KEYSTONE || ARCH_K3 || COMPILE_TEST
