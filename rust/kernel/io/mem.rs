@@ -5,6 +5,7 @@
 use core::ops::Deref;
 
 use crate::device::Device;
+use crate::device::Bound;
 use crate::devres::Devres;
 use crate::io;
 use crate::io::resource::Region;
@@ -52,7 +53,7 @@ impl<const SIZE: usize> ExclusiveIoMem<SIZE> {
         Ok(iomem)
     }
 
-    pub(crate) fn new(resource: &Resource, device: &Device) -> Result<Devres<Self>> {
+    pub(crate) fn new(resource: &Resource, device: &Device<Bound>) -> Result<Devres<Self>> {
         let iomem = Self::ioremap(resource)?;
         let devres = Devres::new(device, iomem, GFP_KERNEL)?;
 
@@ -116,7 +117,7 @@ impl<const SIZE: usize> IoMem<SIZE> {
     }
 
     /// Creates a new `IoMem` instance.
-    pub(crate) fn new(resource: &Resource, device: &Device) -> Result<Devres<Self>> {
+    pub(crate) fn new(resource: &Resource, device: &Device<Bound>) -> Result<Devres<Self>> {
         let io = Self::ioremap(resource)?;
         let devres = Devres::new(device, io, GFP_KERNEL)?;
 
