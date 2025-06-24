@@ -231,7 +231,7 @@ static struct i2c_adapter *inno_hdmi_i2c_adapter(struct inno_hdmi *hdmi)
 	return adap;
 }
 
-static int inno_bridge_attach(struct drm_bridge *bridge,
+static int inno_bridge_attach(struct drm_bridge *bridge, struct drm_encoder *encoder,
 			      enum drm_bridge_attach_flags flags)
 {
 	struct inno_hdmi *hdmi = bridge->driver_private;
