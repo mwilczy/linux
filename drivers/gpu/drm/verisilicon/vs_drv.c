@@ -2,6 +2,8 @@
 /*
  * Copyright (C) VeriSilicon Holdings Co., Ltd.
  */
+
+#include <linux/aperture.h>
 #include <linux/clk.h>
 #include <linux/component.h>
 #include <linux/mfd/syscon.h>
@@ -10,9 +12,8 @@
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 
-#include <drm/drm_aperture.h>
 #include <drm/drm_atomic_helper.h>
-#include <drm/drm_client_setup.h>
+#include <drm/clients/drm_client_setup.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_fb_helper.h>
@@ -291,7 +292,6 @@ static struct drm_driver vs_drm_driver = {
 	.fops			= &vs_drm_fops,
 	.name			= DRV_NAME,
 	.desc			= DRV_DESC,
-	.date			= DRV_DATE,
 	.major			= DRV_MAJOR,
 	.minor			= DRV_MINOR,
 };
@@ -606,7 +606,7 @@ static int vs_drm_bind(struct device *dev)
 	vs_mode_config_init(drm_dev);
 
 	/* Remove existing drivers that may own the framebuffer memory. */
-	ret = drm_aperture_remove_framebuffers(&vs_drm_driver);
+	ret = aperture_remove_all_conflicting_devices(vs_drm_driver.name);
 	if (ret)
 		return ret;
 
@@ -637,9 +637,7 @@ static int vs_drm_bind(struct device *dev)
 
 	drm_mode_config_reset(drm_dev);
 
-	ret = drmm_kms_helper_poll_init(drm_dev);
-	if (ret)
-		goto err_unbind_all;
+	drmm_kms_helper_poll_init(drm_dev);
 
 	ret = drm_dev_register(drm_dev, 0);
 	if (ret)
