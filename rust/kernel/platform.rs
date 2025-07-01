@@ -6,6 +6,7 @@
 
 use crate::{
     acpi, bindings, container_of, device, driver,
+    devres::Devres,
     error::{to_result, Result},
     io::{
         mem::{ExclusiveIoMem, IoMem},
@@ -265,19 +266,19 @@ impl Device<device::Core> {
     ///     # Ok::<(), Error>(())
     /// }
     /// ```
-    pub fn ioremap_resource_sized<const SIZE: usize>(
-        &self,
-        resource: &Resource,
-    ) -> Result<Devres<IoMem<SIZE>>> {
-        IoMem::new(resource, self.as_ref())
+    pub fn ioremap_resource_sized<'a, const SIZE: usize>(
+        &'a self,
+        resource: &'a Resource,
+    ) -> impl PinInit<Devres<IoMem<SIZE>>, Error> + 'a  {
+	 IoMem::new(resource, self.as_ref())
     }
 
     /// Same as [`Self::ioremap_resource_sized`] but with exclusive access to the
     /// underlying region.
-    pub fn ioremap_resource_exclusive_sized<const SIZE: usize>(
-        &self,
-        resource: &Resource,
-    ) -> Result<Devres<ExclusiveIoMem<SIZE>>> {
+    pub fn ioremap_resource_exclusive_sized<'a, const SIZE: usize>(
+        &'a self,
+        resource: &'a Resource,
+    ) -> impl PinInit<Devres<ExclusiveIoMem<SIZE>>, Error> + 'a  {
         ExclusiveIoMem::new(resource, self.as_ref())
     }
 
@@ -306,16 +307,16 @@ impl Device<device::Core> {
     ///     # Ok::<(), Error>(())
     /// }
     /// ```
-    pub fn ioremap_resource(&self, resource: &Resource) -> Result<Devres<IoMem<0>>> {
+    pub fn ioremap_resource<'a>(&'a self, resource: &'a Resource) -> impl PinInit<Devres<IoMem<0>>, Error> + 'a  {
         self.ioremap_resource_sized::<0>(resource)
     }
 
     /// Same as [`Self::ioremap_resource`] but with exclusive access to the underlying
     /// region.
-    pub fn ioremap_resource_exclusive(
-        &self,
-        resource: &Resource,
-    ) -> Result<Devres<ExclusiveIoMem<0>>> {
+    pub fn ioremap_resource_exclusive<'a>(
+        &'a self,
+        resource: &'a Resource,
+    ) -> impl PinInit<Devres<ExclusiveIoMem<0>>, Error> + 'a  {
         self.ioremap_resource_exclusive_sized::<0>(resource)
     }
 

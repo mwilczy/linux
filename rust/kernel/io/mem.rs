@@ -7,12 +7,17 @@ use core::ops::Deref;
 use crate::device::Device;
 use crate::device::Bound;
 use crate::devres::Devres;
+use crate::{
+    alloc::{KBox},
+};
 use crate::io;
 use crate::io::resource::Region;
 use crate::io::resource::Resource;
 use crate::io::Io;
 use crate::io::IoRaw;
 use crate::prelude::*;
+
+use core::pin::Pin;
 
 /// An exclusive memory-mapped IO region.
 ///
@@ -32,7 +37,7 @@ pub struct ExclusiveIoMem<const SIZE: usize> {
     iomem: IoMem<SIZE>,
 }
 
-impl<const SIZE: usize> ExclusiveIoMem<SIZE> {
+impl<'a, const SIZE: usize> ExclusiveIoMem<SIZE> {
     /// Creates a new `ExclusiveIoMem` instance.
     pub(crate) fn ioremap(resource: &Resource) -> Result<Self> {
         let iomem = IoMem::ioremap(resource)?;
@@ -53,11 +58,12 @@ impl<const SIZE: usize> ExclusiveIoMem<SIZE> {
         Ok(iomem)
     }
 
-    pub(crate) fn new(resource: &Resource, device: &Device<Bound>) -> Result<Devres<Self>> {
-        let iomem = Self::ioremap(resource)?;
-        let devres = Devres::new(device, iomem, GFP_KERNEL)?;
-
-        Ok(devres)
+    pub(crate) fn new(
+        resource: &Resource,
+        device: &'a Device<Bound>,
+    ) -> impl PinInit<Devres<Self>, Error> + 'a {
+        let iomem = Self::ioremap(resource);
+        Devres::new(device, iomem)
     }
 }
 
@@ -82,7 +88,7 @@ pub struct IoMem<const SIZE: usize = 0> {
     io: IoRaw<SIZE>,
 }
 
-impl<const SIZE: usize> IoMem<SIZE> {
+impl<'a, const SIZE: usize> IoMem<SIZE> {
     fn ioremap(resource: &Resource) -> Result<Self> {
         let size = resource.size();
         if size == 0 {
@@ -117,13 +123,13 @@ impl<const SIZE: usize> IoMem<SIZE> {
     }
 
     /// Creates a new `IoMem` instance.
-    pub(crate) fn new(resource: &Resource, device: &Device<Bound>) -> Result<Devres<Self>> {
-        let io = Self::ioremap(resource)?;
-        let devres = Devres::new(device, io, GFP_KERNEL)?;
-
-        Ok(devres)
-    }
-}
+    pub(crate) fn new(
+        resource: &Resource,
+        device: &'a Device<Bound>,
+    ) -> impl PinInit<Devres<Self>, Error> + 'a {
+        let io = Self::ioremap(resource);
+        Devres::new(device, io)
+    }}
 
 impl<const SIZE: usize> Drop for IoMem<SIZE> {
     fn drop(&mut self) {
