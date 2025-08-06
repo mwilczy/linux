@@ -25,6 +25,7 @@
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_vblank.h>
 
+#include "vs_crtc.h"
 #include "vs_drv.h"
 
 #define DRV_NAME "verisilicon"
@@ -72,6 +73,17 @@ static struct drm_driver vs_drm_driver = {
 
 static irqreturn_t vs_dc_isr(int irq, void *data)
 {
+	struct vs_drm_device *priv = data;
+	u8 status = 0;
+
+	vs_dc_hw_get_interrupt(priv, &status);
+
+	if (status & BIT(0))
+		drm_crtc_handle_vblank(&priv->crtc[0]->base);
+
+	if (status & BIT(1))
+		drm_crtc_handle_vblank(&priv->crtc[1]->base);
+
 	return IRQ_HANDLED;
 }
 
@@ -147,6 +159,67 @@ static int vs_drm_device_init_res(struct vs_drm_device *priv)
 	}
 
 	return ret;
+}
+
+static int vs_kms_init(struct vs_drm_device *priv)
+{
+	struct drm_device *drm_dev = &priv->base;
+	const struct vs_dc_info *dc_info = priv->hw.info;
+	int i, ret;
+	struct device_node *port;
+	struct vs_crtc *crtc;
+
+	u32 max_width = 0, max_height = 0;
+	u32 min_width = 0xffff, min_heigth = 0xffff;
+
+	drm_dev = &priv->base;
+
+	printk("MICHAL vs_kms_init 1\n");
+
+	for (i = 0; i < dc_info->panel_num; i++) {
+		crtc = vs_crtc_create(drm_dev, dc_info);
+		if (!crtc) {
+			drm_err(drm_dev, "Failed to create CRTC.\n");
+			ret = -ENOMEM;
+			return ret;
+		}
+		crtc->dev = drm_dev->dev;
+		crtc->index = i;
+
+		port = of_graph_get_port_by_id(crtc->dev->of_node, i);
+		if (!port) {
+			drm_err(drm_dev, "no port node found for crtc_port%d\n",
+				i);
+			return -ENOENT;
+		}
+
+		crtc->base.port = port;
+		priv->crtc[i] = crtc;
+
+		of_node_put(port);
+	}
+
+	printk("MICHAL vs_kms_init 2\n");
+
+	if (!priv->crtc[0]->base.port || !priv->crtc[1]->base.port) {
+		drm_err(drm_dev,
+			"no port no crtc mask, failed to create plane\n");
+		return -ENOENT;
+	}
+
+	printk("MICHAL vs_kms_init 3\n");
+
+	printk("MICHAL vs_kms_init 4\n");
+
+	drm_dev->mode_config.min_width = min_width;
+	drm_dev->mode_config.min_height = min_heigth;
+	drm_dev->mode_config.max_width = max_width;
+	drm_dev->mode_config.max_height = max_height;
+
+	if (dc_info->pitch_alignment > priv->pitch_alignment)
+		priv->pitch_alignment = dc_info->pitch_alignment;
+
+	return 0;
 }
 
 static int vs_load(struct vs_drm_device *priv)
@@ -245,6 +318,12 @@ static int vs_drm_bind(struct device *dev)
 
 	printk("MICHAL vs_drm_bind 5\n");
 
+	ret = vs_kms_init(priv);
+	if (ret) {
+		DRM_ERROR("Failed to initialize KMS pipeline\n");
+		return ret;
+	}
+
 	printk("MICHAL vs_drm_bind 6\n");
 
 	ret = vs_load(priv);
@@ -340,9 +419,9 @@ static struct platform_driver *drm_sub_drivers[] = {
 static struct component_match *vs_add_external_components(struct device *dev)
 {
 	struct component_match *match = NULL;
+#ifdef CONFIG_DRM_INNO_STARFIVE_HDMI
 	struct device_node *node;
 
-#ifdef CONFIG_DRM_INNO_STARFIVE_HDMI
 	node = of_graph_get_remote_node(dev->of_node, 0, 0);
 	drm_of_component_match_add(dev, &match, component_compare_of, node);
 	of_node_put(node);

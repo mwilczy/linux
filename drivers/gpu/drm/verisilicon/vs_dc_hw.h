@@ -311,17 +311,41 @@
 #define DC_DISPLAY_NUM 2
 #define DC_CURSOR_NUM 2
 
+enum dc_hw_out {
+	OUT_DPI,
+	OUT_DP,
+	OUT_MAX,
+};
+
+struct dc_hw_gamma {
+	u16 gamma[GAMMA_EX_SIZE][3];
+};
+
 struct dc_hw {
+	enum dc_hw_out out[DC_DISPLAY_NUM];
 	void __iomem *hi_base;
 	void __iomem *reg_base;
 
+	struct dc_hw_gamma gamma[DC_DISPLAY_NUM];
 	const struct vs_dc_info *info;
 };
 
 struct vs_drm_device;
+struct vs_plane;
 
 int vs_dc_hw_init(struct vs_drm_device *priv);
+void vs_dc_hw_update_gamma(struct vs_drm_device *priv, u8 crtc_id, u16 index,
+			   u16 r, u16 g, u16 b);
+void vs_dc_hw_enable_gamma(struct vs_drm_device *priv, u8 crtc_id, bool enable);
+void vs_dc_hw_enable(struct vs_drm_device *priv, int crtc_id,
+		     struct drm_display_mode *mode, u8 encoder_type,
+		     u32 output_fmt);
+void vs_dc_hw_disable(struct vs_drm_device *priv, int crtc_id);
 void vs_dc_hw_enable_interrupt(struct vs_drm_device *priv);
 void vs_dc_hw_disable_interrupt(struct vs_drm_device *priv);
 void vs_dc_hw_get_interrupt(struct vs_drm_device *priv, u8 *status);
+void vs_dc_hw_enable_shadow_register(struct vs_drm_device *priv, bool enable);
+void vs_dc_hw_set_out(struct vs_drm_device *priv, enum dc_hw_out out,
+		      u8 crtc_id);
+
 #endif /* __VS_DC_HW_H__ */

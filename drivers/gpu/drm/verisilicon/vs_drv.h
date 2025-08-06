@@ -38,6 +38,7 @@ struct vs_drm_device {
 
 	/* Display Controller Hardware State */
 	struct dc_hw hw;
+	struct vs_crtc *crtc[DC_DISPLAY_NUM];
 };
 
 static inline struct vs_drm_device *
