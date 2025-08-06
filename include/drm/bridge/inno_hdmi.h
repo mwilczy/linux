@@ -6,10 +6,15 @@
 #ifndef __INNO_HDMI__
 #define __INNO_HDMI__
 
+#include <drm/drm_bridge.h>
+
 struct device;
 struct drm_encoder;
 struct drm_display_mode;
 struct inno_hdmi;
+struct i2c_adapter;
+struct inno_hdmi_i2c;
+struct drm_bridge;
 
 struct inno_hdmi_plat_ops {
 	void (*enable)(struct device *pdev, struct drm_display_mode *mode);
@@ -25,6 +30,19 @@ struct inno_hdmi_plat_data {
 	const struct inno_hdmi_plat_ops *ops;
 	struct inno_hdmi_phy_config *phy_configs;
 	struct inno_hdmi_phy_config *default_phy_config;
+};
+
+struct inno_hdmi {
+	struct device *dev;
+	struct drm_bridge bridge;
+	struct clk *pclk;
+	struct clk *refclk;
+	void __iomem *regs;
+	struct regmap *grf;
+
+	struct i2c_adapter *ddc;
+	struct inno_hdmi_i2c *i2c;
+	const struct inno_hdmi_plat_data *plat_data;
 };
 
 struct inno_hdmi *inno_hdmi_bind(struct device *pdev,

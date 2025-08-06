@@ -394,7 +394,7 @@ struct inno_hdmi_i2c {
 	struct completion cmp;
 };
 
-struct inno_hdmi {
+/*struct inno_hdmi {
 	struct device *dev;
 	struct drm_bridge bridge;
 	struct clk *pclk;
@@ -405,7 +405,7 @@ struct inno_hdmi {
 	struct inno_hdmi_i2c *i2c;
 	struct i2c_adapter *ddc;
 	const struct inno_hdmi_plat_data *plat_data;
-};
+};*/
 
 enum {
 	CSC_RGB_0_255_TO_ITU601_16_235_8BIT,
@@ -465,23 +465,23 @@ static int inno_hdmi_find_phy_config(struct inno_hdmi *hdmi,
 			return i;
 	}
 
-	DRM_DEV_DEBUG(hdmi->dev, "No phy configuration for pixelclock %lu\n",
+	dev_err(hdmi->dev, "MICHAL: No phy configuration for pixelclock %lu\n",
 		      pixelclk);
 
 	return -EINVAL;
 }
 
-static inline u8 hdmi_readb(struct inno_hdmi *hdmi, u16 offset)
+static u8 hdmi_readb(struct inno_hdmi *hdmi, u16 offset)
 {
 	return readl_relaxed(hdmi->regs + (offset) * 0x04);
 }
 
-static inline void hdmi_writeb(struct inno_hdmi *hdmi, u16 offset, u32 val)
+static void hdmi_writeb(struct inno_hdmi *hdmi, u16 offset, u32 val)
 {
 	writel_relaxed(val, hdmi->regs + (offset) * 0x04);
 }
 
-static inline void hdmi_modb(struct inno_hdmi *hdmi, u16 offset,
+static void hdmi_modb(struct inno_hdmi *hdmi, u16 offset,
 			     u32 msk, u32 val)
 {
 	u8 temp = hdmi_readb(hdmi, offset) & ~msk;
@@ -494,6 +494,7 @@ static void inno_hdmi_i2c_init(struct inno_hdmi *hdmi, unsigned long long rate)
 {
 	unsigned long long ddc_bus_freq = rate >> 2;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry, rate=%llu\n", __func__, rate);
 	do_div(ddc_bus_freq, HDMI_SCL_RATE);
 
 	hdmi_writeb(hdmi, DDC_BUS_FREQ_L, ddc_bus_freq & 0xFF);
@@ -502,10 +503,12 @@ static void inno_hdmi_i2c_init(struct inno_hdmi *hdmi, unsigned long long rate)
 	/* Clear the EDID interrupt flag and mute the interrupt */
 	hdmi_writeb(hdmi, HDMI_INTERRUPT_MASK1, 0);
 	hdmi_writeb(hdmi, HDMI_INTERRUPT_STATUS1, m_INT_EDID_READY);
+	dev_info(hdmi->dev, "MICHAL: %s: exit\n", __func__);
 }
 
 static void inno_hdmi_sys_power(struct inno_hdmi *hdmi, bool enable)
 {
+	dev_info(hdmi->dev, "MICHAL: %s: enable=%d\n", __func__, enable);
 	if (enable)
 		hdmi_modb(hdmi, HDMI_SYS_CTRL, m_POWER, v_PWR_ON);
 	else
@@ -514,12 +517,14 @@ static void inno_hdmi_sys_power(struct inno_hdmi *hdmi, bool enable)
 
 static void inno_hdmi_standby(struct inno_hdmi *hdmi)
 {
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	inno_hdmi_sys_power(hdmi, false);
 
 	hdmi_writeb(hdmi, HDMI_PHY_DRIVER, 0x00);
 	hdmi_writeb(hdmi, HDMI_PHY_PRE_EMPHASIS, 0x00);
 	hdmi_writeb(hdmi, HDMI_PHY_CHG_PWR, 0x00);
 	hdmi_writeb(hdmi, HDMI_PHY_SYS_CTL, 0x15);
+	dev_info(hdmi->dev, "MICHAL: %s: exit\n", __func__);
 };
 
 static void inno_hdmi_power_up(struct inno_hdmi *hdmi,
@@ -528,10 +533,11 @@ static void inno_hdmi_power_up(struct inno_hdmi *hdmi,
 	struct inno_hdmi_phy_config *phy_config;
 	int ret = inno_hdmi_find_phy_config(hdmi, mpixelclock);
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry, clock=%lu\n", __func__, mpixelclock);
 	if (ret < 0) {
 		phy_config = hdmi->plat_data->default_phy_config;
-		DRM_DEV_ERROR(hdmi->dev,
-			      "Using default phy configuration for TMDS rate %lu",
+		dev_err(hdmi->dev,
+			      "MICHAL: Using default phy configuration for TMDS rate %lu",
 			      mpixelclock);
 	} else {
 		phy_config = &hdmi->plat_data->phy_configs[ret];
@@ -549,6 +555,7 @@ static void inno_hdmi_power_up(struct inno_hdmi *hdmi,
 	hdmi_writeb(hdmi, HDMI_PHY_SYNC, 0x01);
 
 	inno_hdmi_sys_power(hdmi, true);
+	dev_info(hdmi->dev, "MICHAL: %s: exit\n", __func__);
 };
 
 static void inno_hdmi_init_hw(struct inno_hdmi *hdmi)
@@ -556,6 +563,7 @@ static void inno_hdmi_init_hw(struct inno_hdmi *hdmi)
 	u32 val;
 	u32 msk;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	hdmi_modb(hdmi, HDMI_SYS_CTRL, m_RST_DIGITAL, v_NOT_RST_DIGITAL);
 	usleep_range(100, 150);
 
@@ -582,6 +590,7 @@ static void inno_hdmi_init_hw(struct inno_hdmi *hdmi)
 
 	/* Unmute hotplug interrupt */
 	hdmi_modb(hdmi, HDMI_STATUS, m_MASK_INT_HOTPLUG, v_MASK_INT_HOTPLUG(1));
+	dev_info(hdmi->dev, "MICHAL: %s: exit\n", __func__);
 }
 
 static int inno_hdmi_bridge_clear_infoframe(struct drm_bridge *bridge,
@@ -589,8 +598,9 @@ static int inno_hdmi_bridge_clear_infoframe(struct drm_bridge *bridge,
 {
 	struct inno_hdmi *hdmi = bridge_to_inno_hdmi(bridge);
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	if (type != HDMI_INFOFRAME_TYPE_AVI) {
-		drm_err(bridge->dev, "Unsupported infoframe type: %u\n", type);
+		dev_err(hdmi->dev, "MICHAL: Unsupported infoframe type: %u\n", type);
 		return 0;
 	}
 
@@ -606,8 +616,9 @@ static int inno_hdmi_bridge_write_infoframe(struct drm_bridge *bridge,
 	struct inno_hdmi *hdmi = bridge_to_inno_hdmi(bridge);
 	ssize_t i;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	if (type != HDMI_INFOFRAME_TYPE_AVI) {
-		drm_err(bridge->dev, "Unsupported infoframe type: %u\n", type);
+		dev_err(hdmi->dev, "MICHAL: Unsupported infoframe type: %u\n", type);
 		return 0;
 	}
 
@@ -633,6 +644,7 @@ static int inno_hdmi_config_video_csc(struct inno_hdmi *hdmi,
 	int colorimetry;
 	u8 vic = drm_match_cea_mode(mode);
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	if (vic == 6 || vic == 7 || vic == 21 || vic == 22 ||
 	    vic == 2 || vic == 3 || vic == 17 || vic == 18)
 		colorimetry = HDMI_COLORIMETRY_ITU_601;
@@ -665,6 +677,7 @@ static int inno_hdmi_config_video_csc(struct inno_hdmi *hdmi,
 				  m_VIDEO_AUTO_CSC | m_VIDEO_C0_C2_SWAP,
 				  v_VIDEO_AUTO_CSC(AUTO_CSC_DISABLE) |
 				  v_VIDEO_C0_C2_SWAP(C0_C2_CHANGE_DISABLE));
+			dev_info(hdmi->dev, "MICHAL: %s: exit (RGB full range)\n", __func__);
 			return 0;
 		}
 	} else {
@@ -694,6 +707,7 @@ static int inno_hdmi_config_video_csc(struct inno_hdmi *hdmi,
 		  m_VIDEO_C0_C2_SWAP, v_VIDEO_AUTO_CSC(auto_csc) |
 		  v_VIDEO_C0_C2_SWAP(c0_c2_change));
 
+	dev_info(hdmi->dev, "MICHAL: %s: exit\n", __func__);
 	return 0;
 }
 
@@ -703,8 +717,12 @@ static int inno_hdmi_config_video_timing(struct inno_hdmi *hdmi,
 	const struct inno_hdmi_plat_ops *plat_ops = hdmi->plat_data->ops;
 	u32 value;
 
-	if (plat_ops && plat_ops->enable)
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
+	if (plat_ops && plat_ops->enable) {
+		dev_info(hdmi->dev, "MICHAL: %s: --> Calling platform enable op\n", __func__);
 		plat_ops->enable(hdmi->dev, mode);
+		dev_info(hdmi->dev, "MICHAL: %s: <-- Platform enable op returned\n", __func__);
+	}
 
 	/* Set detail external video timing polarity and interlace mode */
 	value = v_EXTERANL_VIDEO(1);
@@ -750,6 +768,7 @@ static int inno_hdmi_config_video_timing(struct inno_hdmi *hdmi,
 	hdmi_writeb(hdmi, HDMI_PHY_FEEDBACK_DIV_RATIO_LOW, 0x2c);
 	hdmi_writeb(hdmi, HDMI_PHY_FEEDBACK_DIV_RATIO_HIGH, 0x01);
 
+	dev_info(hdmi->dev, "MICHAL: %s: exit\n", __func__);
 	return 0;
 }
 
@@ -761,6 +780,7 @@ static int inno_hdmi_setup(struct inno_hdmi *hdmi, struct drm_atomic_state *stat
 	struct drm_connector_state *new_conn_state;
 	struct drm_crtc_state *new_crtc_state;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	connector = drm_atomic_get_new_connector_for_encoder(state, bridge->encoder);
 
 	new_conn_state = drm_atomic_get_new_connector_state(state, connector);
@@ -800,6 +820,7 @@ static int inno_hdmi_setup(struct inno_hdmi *hdmi, struct drm_atomic_state *stat
 
 	inno_hdmi_power_up(hdmi, new_conn_state->hdmi.tmds_char_rate);
 
+	dev_info(hdmi->dev, "MICHAL: %s: exit\n", __func__);
 	return 0;
 }
 
@@ -841,9 +862,13 @@ static enum drm_connector_status
 inno_hdmi_bridge_detect(struct drm_bridge *bridge, struct drm_connector *connector)
 {
 	struct inno_hdmi *hdmi = bridge_to_inno_hdmi(bridge);
+	enum drm_connector_status status;
 
-	return (hdmi_readb(hdmi, HDMI_STATUS) & m_HOTPLUG) ?
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
+	status = (hdmi_readb(hdmi, HDMI_STATUS) & m_HOTPLUG) ?
 		connector_status_connected : connector_status_disconnected;
+	dev_info(hdmi->dev, "MICHAL: %s: exit, status=%d\n", __func__, status);
+	return status;
 }
 
 static const struct drm_edid *
@@ -852,10 +877,12 @@ inno_hdmi_bridge_edid_read(struct drm_bridge *bridge, struct drm_connector *conn
 	struct inno_hdmi *hdmi = bridge_to_inno_hdmi(bridge);
 	const struct drm_edid *drm_edid;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	drm_edid = drm_edid_read_ddc(connector, bridge->ddc);
 	if (!drm_edid)
-		dev_dbg(hdmi->dev, "failed to get edid\n");
+		dev_err(hdmi->dev, "MICHAL: failed to get edid\n");
 
+	dev_info(hdmi->dev, "MICHAL: %s: exit\n", __func__);
 	return drm_edid;
 }
 
@@ -864,7 +891,9 @@ static void inno_hdmi_bridge_atomic_enable(struct drm_bridge *bridge,
 {
 	struct inno_hdmi *hdmi = bridge_to_inno_hdmi(bridge);
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	inno_hdmi_setup(hdmi, state);
+	dev_info(hdmi->dev, "MICHAL: %s: exit\n", __func__);
 }
 
 static void inno_hdmi_bridge_atomic_disable(struct drm_bridge *bridge,
@@ -872,7 +901,9 @@ static void inno_hdmi_bridge_atomic_disable(struct drm_bridge *bridge,
 {
 	struct inno_hdmi *hdmi = bridge_to_inno_hdmi(bridge);
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	inno_hdmi_standby(hdmi);
+	dev_info(hdmi->dev, "MICHAL: %s: exit\n", __func__);
 }
 
 static const struct drm_bridge_funcs inno_hdmi_bridge_funcs = {
@@ -893,6 +924,7 @@ static irqreturn_t inno_hdmi_i2c_irq(struct inno_hdmi *hdmi)
 	struct inno_hdmi_i2c *i2c = hdmi->i2c;
 	u8 stat;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	stat = hdmi_readb(hdmi, HDMI_INTERRUPT_STATUS1);
 	if (!(stat & m_INT_EDID_READY))
 		return IRQ_NONE;
@@ -911,11 +943,13 @@ static irqreturn_t inno_hdmi_hardirq(int irq, void *dev_id)
 	irqreturn_t ret = IRQ_NONE;
 	u8 interrupt;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	if (hdmi->i2c)
 		ret = inno_hdmi_i2c_irq(hdmi);
 
 	interrupt = hdmi_readb(hdmi, HDMI_STATUS);
 	if (interrupt & m_INT_HOTPLUG) {
+		dev_info(hdmi->dev, "MICHAL: %s: Hotplug event detected!\n", __func__);
 		hdmi_modb(hdmi, HDMI_STATUS, m_INT_HOTPLUG, m_INT_HOTPLUG);
 		ret = IRQ_WAKE_THREAD;
 	}
@@ -927,6 +961,7 @@ static irqreturn_t inno_hdmi_irq(int irq, void *dev_id)
 {
 	struct inno_hdmi *hdmi = dev_id;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry (HPD thread)\n", __func__);
 	drm_helper_hpd_irq_event(hdmi->bridge.dev);
 
 	return IRQ_HANDLED;
@@ -938,6 +973,7 @@ static int inno_hdmi_i2c_read(struct inno_hdmi *hdmi, struct i2c_msg *msgs)
 	u8 *buf = msgs->buf;
 	int ret;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry, len=%d\n", __func__, length);
 	ret = wait_for_completion_timeout(&hdmi->i2c->cmp, HZ / 10);
 	if (!ret)
 		return -EAGAIN;
@@ -950,11 +986,7 @@ static int inno_hdmi_i2c_read(struct inno_hdmi *hdmi, struct i2c_msg *msgs)
 
 static int inno_hdmi_i2c_write(struct inno_hdmi *hdmi, struct i2c_msg *msgs)
 {
-	/*
-	 * The DDC module only support read EDID message, so
-	 * we assume that each word write to this i2c adapter
-	 * should be the offset of EDID word address.
-	 */
+	dev_info(hdmi->dev, "MICHAL: %s: entry, len=%d, addr=0x%x\n", __func__, msgs->len, msgs->addr);
 	if (msgs->len != 1 || (msgs->addr != DDC_ADDR && msgs->addr != DDC_SEGMENT_ADDR))
 		return -EINVAL;
 
@@ -965,13 +997,8 @@ static int inno_hdmi_i2c_write(struct inno_hdmi *hdmi, struct i2c_msg *msgs)
 	if (msgs->addr == DDC_ADDR)
 		hdmi->i2c->ddc_addr = msgs->buf[0];
 
-	/* Set edid fifo first addr */
 	hdmi_writeb(hdmi, HDMI_EDID_FIFO_OFFSET, 0x00);
-
-	/* Set edid word address 0x00/0x80 */
 	hdmi_writeb(hdmi, HDMI_EDID_WORD_ADDR, hdmi->i2c->ddc_addr);
-
-	/* Set edid segment pointer */
 	hdmi_writeb(hdmi, HDMI_EDID_SEGMENT_POINTER, hdmi->i2c->segment_addr);
 
 	return 0;
@@ -984,17 +1011,13 @@ static int inno_hdmi_i2c_xfer(struct i2c_adapter *adap,
 	struct inno_hdmi_i2c *i2c = hdmi->i2c;
 	int i, ret = 0;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry, num_msgs=%d\n", __func__, num);
 	mutex_lock(&i2c->lock);
 
-	/* Clear the EDID interrupt flag and unmute the interrupt */
 	hdmi_writeb(hdmi, HDMI_INTERRUPT_MASK1, m_INT_EDID_READY);
 	hdmi_writeb(hdmi, HDMI_INTERRUPT_STATUS1, m_INT_EDID_READY);
 
 	for (i = 0; i < num; i++) {
-		DRM_DEV_DEBUG(hdmi->dev,
-			      "xfer: num: %d/%d, len: %d, flags: %#x\n",
-			      i + 1, num, msgs[i].len, msgs[i].flags);
-
 		if (msgs[i].flags & I2C_M_RD)
 			ret = inno_hdmi_i2c_read(hdmi, &msgs[i]);
 		else
@@ -1007,11 +1030,11 @@ static int inno_hdmi_i2c_xfer(struct i2c_adapter *adap,
 	if (!ret)
 		ret = num;
 
-	/* Mute HDMI EDID interrupt */
 	hdmi_writeb(hdmi, HDMI_INTERRUPT_MASK1, 0);
 
 	mutex_unlock(&i2c->lock);
 
+	dev_info(hdmi->dev, "MICHAL: %s: exit, ret=%d\n", __func__, ret);
 	return ret;
 }
 
@@ -1021,8 +1044,8 @@ static u32 inno_hdmi_i2c_func(struct i2c_adapter *adapter)
 }
 
 static const struct i2c_algorithm inno_hdmi_algorithm = {
-	.master_xfer	= inno_hdmi_i2c_xfer,
-	.functionality	= inno_hdmi_i2c_func,
+	.master_xfer    = inno_hdmi_i2c_xfer,
+	.functionality  = inno_hdmi_i2c_func,
 };
 
 static struct i2c_adapter *inno_hdmi_i2c_adapter(struct inno_hdmi *hdmi)
@@ -1031,6 +1054,7 @@ static struct i2c_adapter *inno_hdmi_i2c_adapter(struct inno_hdmi *hdmi)
 	struct inno_hdmi_i2c *i2c;
 	int ret;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	i2c = devm_kzalloc(hdmi->dev, sizeof(*i2c), GFP_KERNEL);
 	if (!i2c)
 		return ERR_PTR(-ENOMEM);
@@ -1054,7 +1078,7 @@ static struct i2c_adapter *inno_hdmi_i2c_adapter(struct inno_hdmi *hdmi)
 
 	hdmi->i2c = i2c;
 
-	DRM_DEV_INFO(hdmi->dev, "registered %s I2C bus driver\n", adap->name);
+	dev_info(hdmi->dev, "MICHAL: %s: registered %s I2C bus driver\n", __func__, adap->name);
 
 	return adap;
 }
@@ -1068,14 +1092,16 @@ struct inno_hdmi *inno_hdmi_bind(struct device *dev,
 	int irq;
 	int ret;
 
-	if (!plat_data->phy_configs || !plat_data->default_phy_config) {
-		dev_err(dev, "Missing platform PHY ops\n");
+	dev_info(dev, "MICHAL: %s: entry\n", __func__);
+	if (!plat_data || !plat_data->phy_configs || !plat_data->default_phy_config) {
+		dev_err(dev, "MICHAL: Missing platform data or PHY ops\n");
 		return ERR_PTR(-ENODEV);
 	}
 
 	hdmi = devm_drm_bridge_alloc(dev, struct inno_hdmi, bridge, &inno_hdmi_bridge_funcs);
 	if (IS_ERR(hdmi))
 		return ERR_CAST(hdmi);
+	dev_info(dev, "MICHAL: %s: Bridge allocated\n", __func__);
 
 	hdmi->dev = dev;
 	hdmi->plat_data = plat_data;
@@ -1083,30 +1109,35 @@ struct inno_hdmi *inno_hdmi_bind(struct device *dev,
 	hdmi->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(hdmi->regs))
 		return ERR_CAST(hdmi->regs);
+	dev_info(dev, "MICHAL: %s: Registers mapped\n", __func__);
 
 	hdmi->pclk = devm_clk_get_enabled(hdmi->dev, "pclk");
 	if (IS_ERR(hdmi->pclk)) {
-		dev_err_probe(dev, PTR_ERR(hdmi->pclk), "Unable to get HDMI pclk\n");
+		dev_err_probe(dev, PTR_ERR(hdmi->pclk), "MICHAL: Unable to get HDMI pclk\n");
 		return ERR_CAST(hdmi->pclk);
 	}
+	dev_info(dev, "MICHAL: %s: pclk enabled\n", __func__);
 
 	hdmi->refclk = devm_clk_get_optional_enabled(hdmi->dev, "ref");
 	if (IS_ERR(hdmi->refclk)) {
-		dev_err_probe(dev, PTR_ERR(hdmi->refclk), "Unable to get HDMI refclk\n");
+		dev_err_probe(dev, PTR_ERR(hdmi->refclk), "MICHAL: Unable to get HDMI refclk\n");
 		return ERR_CAST(hdmi->refclk);
 	}
+	dev_info(dev, "MICHAL: %s: refclk handled\n", __func__);
 
 	inno_hdmi_init_hw(hdmi);
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0)
 		return ERR_PTR(irq);
+	dev_info(dev, "MICHAL: %s: Got IRQ %d\n", __func__, irq);
 
 	ret = devm_request_threaded_irq(dev, irq, inno_hdmi_hardirq,
 					inno_hdmi_irq, IRQF_SHARED,
 					dev_name(dev), hdmi);
 	if (ret)
 		return ERR_PTR(ret);
+	dev_info(dev, "MICHAL: %s: Requested IRQ\n", __func__);
 
 	hdmi->bridge.driver_private = hdmi;
 	hdmi->bridge.ops = DRM_BRIDGE_OP_DETECT |
@@ -1125,14 +1156,18 @@ struct inno_hdmi *inno_hdmi_bind(struct device *dev,
 	ret = devm_drm_bridge_add(dev, &hdmi->bridge);
 	if (ret)
 		return ERR_PTR(ret);
+	dev_info(dev, "MICHAL: %s: DRM bridge added\n", __func__);
 
 	ret = drm_bridge_attach(encoder, &hdmi->bridge, NULL, DRM_BRIDGE_ATTACH_NO_CONNECTOR);
 	if (ret)
 		return ERR_PTR(ret);
+	dev_info(dev, "MICHAL: %s: Bridge attached to encoder\n", __func__);
 
+	dev_info(dev, "MICHAL: %s: exit (SUCCESS)\n", __func__);
 	return hdmi;
 }
 EXPORT_SYMBOL_GPL(inno_hdmi_bind);
+
 MODULE_AUTHOR("Andy Yan <andyshrk@163.com>");
 MODULE_DESCRIPTION("INNOSILICON HDMI transmitter library");
 MODULE_LICENSE("GPL");
