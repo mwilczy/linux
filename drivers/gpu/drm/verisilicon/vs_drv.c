@@ -9,24 +9,29 @@
 #include <linux/clk.h>
 #include <linux/component.h>
 #include <linux/mfd/syscon.h>
+#include <linux/of_clk.h>
 #include <linux/of_device.h>
-#include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
+#include <linux/regmap.h>
 #include <linux/reset.h>
 
-#include <drm/clients/drm_client_setup.h>
 #include <drm/drm_atomic_helper.h>
-#include <drm/drm_drv.h>
-#include <drm/drm_modeset_helper.h>
+#include <drm/clients/drm_client_setup.h>
+#include <drm/drm_crtc.h>
+#include <drm/drm_crtc_helper.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_file.h>
+#include <drm/drm_fourcc.h>
 #include <drm/drm_gem_dma_helper.h>
 #include <drm/drm_module.h>
 #include <drm/drm_of.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_vblank.h>
 
-#include "vs_crtc.h"
 #include "vs_drv.h"
+#include "vs_crtc.h"
+#include "vs_plane.h"
+#include "vs_modeset.h"
 
 #define DRV_NAME "verisilicon"
 #define DRV_DESC "Verisilicon DRM driver"
@@ -36,9 +41,198 @@
 
 #define FRAC_16_16(mult, div) (((mult) << 16) / (div))
 
+static const u32 primary_overlay_format[] = {
+	DRM_FORMAT_RGB565,	DRM_FORMAT_BGR565,	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_XBGR8888,	DRM_FORMAT_RGBX8888,	DRM_FORMAT_BGRX8888,
+	DRM_FORMAT_ARGB8888,	DRM_FORMAT_ABGR8888,	DRM_FORMAT_RGBA8888,
+	DRM_FORMAT_BGRA8888,	DRM_FORMAT_XRGB4444,	DRM_FORMAT_XBGR4444,
+	DRM_FORMAT_RGBX4444,	DRM_FORMAT_BGRX4444,	DRM_FORMAT_ARGB4444,
+	DRM_FORMAT_ABGR4444,	DRM_FORMAT_RGBA4444,	DRM_FORMAT_BGRA4444,
+	DRM_FORMAT_XRGB1555,	DRM_FORMAT_XBGR1555,	DRM_FORMAT_RGBX5551,
+	DRM_FORMAT_BGRX5551,	DRM_FORMAT_ARGB1555,	DRM_FORMAT_ABGR1555,
+	DRM_FORMAT_RGBA5551,	DRM_FORMAT_BGRA5551,	DRM_FORMAT_ARGB2101010,
+	DRM_FORMAT_ABGR2101010, DRM_FORMAT_RGBA1010102, DRM_FORMAT_BGRA1010102,
+	DRM_FORMAT_YUYV,	DRM_FORMAT_YVYU,	DRM_FORMAT_UYVY,
+	DRM_FORMAT_VYUY,	DRM_FORMAT_YVU420,	DRM_FORMAT_YUV420,
+	DRM_FORMAT_NV12,	DRM_FORMAT_NV21,	DRM_FORMAT_NV16,
+	DRM_FORMAT_NV61,	DRM_FORMAT_P010,
+};
+
+static const u32 cursor_formats[] = { DRM_FORMAT_ARGB8888 };
+
+static const u64 format_modifier[] = { DRM_FORMAT_MOD_LINEAR,
+				       DRM_FORMAT_MOD_INVALID };
+
+static const u64 secondary_format_modifiers[] = { DRM_FORMAT_MOD_LINEAR,
+						  DRM_FORMAT_MOD_INVALID };
+
+static const struct vs_plane_data vs_plane_pri0 = {
+	.num_formats = ARRAY_SIZE(primary_overlay_format),
+	.formats = primary_overlay_format,
+	.num_modifiers = ARRAY_SIZE(format_modifier),
+	.modifiers = format_modifier,
+	.min_width = 0,
+	.min_height = 0,
+	.max_width = 4096,
+	.max_height = 4096,
+	.min_scale = FRAC_16_16(1, 3),
+	.max_scale = FRAC_16_16(10, 1),
+	.rotation = DRM_MODE_ROTATE_0 | DRM_MODE_ROTATE_90 |
+		    DRM_MODE_ROTATE_180 | DRM_MODE_ROTATE_270 |
+		    DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y,
+	.color_encoding = BIT(DRM_COLOR_YCBCR_BT709) |
+			  BIT(DRM_COLOR_YCBCR_BT2020),
+	.zpos = 0,
+};
+
+static const struct vs_plane_data vs_plane_pri1 = {
+	.num_formats = ARRAY_SIZE(primary_overlay_format),
+	.formats = primary_overlay_format,
+	.num_modifiers = ARRAY_SIZE(format_modifier),
+	.modifiers = format_modifier,
+	.min_width = 0,
+	.min_height = 0,
+	.max_width = 4096,
+	.max_height = 4096,
+	.min_scale = FRAC_16_16(1, 3),
+	.max_scale = FRAC_16_16(10, 1),
+	.rotation = DRM_MODE_ROTATE_0 | DRM_MODE_ROTATE_90 |
+		    DRM_MODE_ROTATE_180 | DRM_MODE_ROTATE_270 |
+		    DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y,
+	.color_encoding = BIT(DRM_COLOR_YCBCR_BT709) |
+			  BIT(DRM_COLOR_YCBCR_BT2020),
+	.zpos = 3,
+};
+
+static const struct vs_plane_data vs_plane_over0 = {
+	.num_formats = ARRAY_SIZE(primary_overlay_format),
+	.formats = primary_overlay_format,
+	.num_modifiers = ARRAY_SIZE(format_modifier),
+	.modifiers = format_modifier,
+	.min_width = 0,
+	.min_height = 0,
+	.max_width = 4096,
+	.max_height = 4096,
+	.min_scale = FRAC_16_16(1, 3),
+	.max_scale = FRAC_16_16(10, 1),
+	.rotation = DRM_MODE_ROTATE_0 | DRM_MODE_ROTATE_90 |
+		    DRM_MODE_ROTATE_180 | DRM_MODE_ROTATE_270 |
+		    DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y,
+	.color_encoding = BIT(DRM_COLOR_YCBCR_BT709) |
+			  BIT(DRM_COLOR_YCBCR_BT2020),
+	.zpos = 1,
+};
+
+static const struct vs_plane_data vs_plane_over1 = {
+	.num_formats = ARRAY_SIZE(primary_overlay_format),
+	.formats = primary_overlay_format,
+	.num_modifiers = ARRAY_SIZE(secondary_format_modifiers),
+	.modifiers = secondary_format_modifiers,
+	.min_width = 0,
+	.min_height = 0,
+	.max_width = 4096,
+	.max_height = 4096,
+	.min_scale = DRM_PLANE_NO_SCALING,
+	.max_scale = DRM_PLANE_NO_SCALING,
+	.rotation = 0,
+	.color_encoding = BIT(DRM_COLOR_YCBCR_BT709) |
+			  BIT(DRM_COLOR_YCBCR_BT2020),
+	.zpos = 2,
+};
+
+static const struct vs_plane_data vs_plane_over2 = {
+	.num_formats = ARRAY_SIZE(primary_overlay_format),
+	.formats = primary_overlay_format,
+	.num_modifiers = ARRAY_SIZE(format_modifier),
+	.modifiers = format_modifier,
+	.min_width = 0,
+	.min_height = 0,
+	.max_width = 4096,
+	.max_height = 4096,
+	.min_scale = FRAC_16_16(1, 3),
+	.max_scale = FRAC_16_16(10, 1),
+	.rotation = DRM_MODE_ROTATE_0 | DRM_MODE_ROTATE_90 |
+		    DRM_MODE_ROTATE_180 | DRM_MODE_ROTATE_270 |
+		    DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y,
+	.color_encoding = BIT(DRM_COLOR_YCBCR_BT709) |
+			  BIT(DRM_COLOR_YCBCR_BT2020),
+	.zpos = 4,
+};
+
+static const struct vs_plane_data vs_plane_over3 = {
+	.num_formats = ARRAY_SIZE(primary_overlay_format),
+	.formats = primary_overlay_format,
+	.num_modifiers = ARRAY_SIZE(format_modifier),
+	.modifiers = format_modifier,
+	.min_width = 0,
+	.min_height = 0,
+	.max_width = 4096,
+	.max_height = 4096,
+	.min_scale = FRAC_16_16(1, 3),
+	.max_scale = FRAC_16_16(10, 1),
+	.rotation = DRM_MODE_ROTATE_0 | DRM_MODE_ROTATE_90 |
+		    DRM_MODE_ROTATE_180 | DRM_MODE_ROTATE_270 |
+		    DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y,
+	.color_encoding = BIT(DRM_COLOR_YCBCR_BT709) |
+			  BIT(DRM_COLOR_YCBCR_BT2020),
+	.zpos = 5,
+};
+
+static const struct vs_plane_data vs_plane_cur0 = {
+	.num_formats = ARRAY_SIZE(cursor_formats),
+	.formats = cursor_formats,
+	.min_width = 32,
+	.min_height = 32,
+	.max_width = 64,
+	.max_height = 64,
+	.min_scale = DRM_PLANE_NO_SCALING,
+	.max_scale = DRM_PLANE_NO_SCALING,
+	.zpos = 255,
+};
+
+static const struct vs_plane_data vs_plane_cur1 = {
+	.num_formats = ARRAY_SIZE(cursor_formats),
+	.formats = cursor_formats,
+	.min_width = 32,
+	.min_height = 32,
+	.max_width = 64,
+	.max_height = 64,
+	.zpos = 255,
+};
+
+static const struct vs_plane_info info[] = {
+	{ .id = PRIMARY_PLANE_0,
+	  .data = &vs_plane_pri0,
+	  .type = DRM_PLANE_TYPE_PRIMARY },
+	{ .id = OVERLAY_PLANE_0,
+	  .data = &vs_plane_over0,
+	  .type = DRM_PLANE_TYPE_OVERLAY },
+	{ .id = OVERLAY_PLANE_1,
+	  .data = &vs_plane_over1,
+	  .type = DRM_PLANE_TYPE_OVERLAY },
+	{ .id = PRIMARY_PLANE_1,
+	  .data = &vs_plane_pri1,
+	  .type = DRM_PLANE_TYPE_PRIMARY },
+	{ .id = OVERLAY_PLANE_2,
+	  .data = &vs_plane_over2,
+	  .type = DRM_PLANE_TYPE_OVERLAY },
+	{ .id = OVERLAY_PLANE_3,
+	  .data = &vs_plane_over3,
+	  .type = DRM_PLANE_TYPE_OVERLAY },
+	{ .id = CURSOR_PLANE_0,
+	  .data = &vs_plane_cur0,
+	  .type = DRM_PLANE_TYPE_CURSOR },
+	{ .id = CURSOR_PLANE_1,
+	  .data = &vs_plane_cur1,
+	  .type = DRM_PLANE_TYPE_CURSOR },
+};
+
 static const struct vs_dc_info dc8200_info = {
 	.name = "DC8200",
+	.plane_num = ARRAY_SIZE(info),
 	.panel_num = 2,
+	.info = info,
+	.layer_num = 6,
 	.gamma_size = GAMMA_EX_SIZE,
 	.gamma_bits = 12,
 	.pitch_alignment = 128,
@@ -161,6 +355,42 @@ static int vs_drm_device_init_res(struct vs_drm_device *priv)
 	return ret;
 }
 
+static u32 vs_get_addr_offset(u32 id)
+{
+	u32 offset = 0;
+
+	switch (id) {
+	case PRIMARY_PLANE_1:
+	case OVERLAY_PLANE_1:
+		offset = 0x04;
+		break;
+	case OVERLAY_PLANE_2:
+		offset = 0x08;
+		break;
+	case OVERLAY_PLANE_3:
+		offset = 0x0C;
+		break;
+	default:
+		break;
+	}
+
+	return offset;
+}
+
+static u32 vs_map_possible_crtc(u32 id)
+{
+	switch (id) {
+	case PRIMARY_PLANE_0:
+	case CURSOR_PLANE_0:
+		return 0x01; //crtc0
+	case PRIMARY_PLANE_1:
+	case CURSOR_PLANE_1:
+		return 0x02; //crtc1
+	default:
+		return 0x03; //crtc0&crtc1
+	}
+}
+
 static int vs_kms_init(struct vs_drm_device *priv)
 {
 	struct drm_device *drm_dev = &priv->base;
@@ -168,6 +398,8 @@ static int vs_kms_init(struct vs_drm_device *priv)
 	int i, ret;
 	struct device_node *port;
 	struct vs_crtc *crtc;
+	struct vs_plane_info *plane_info;
+	struct vs_plane *plane;
 
 	u32 max_width = 0, max_height = 0;
 	u32 min_width = 0xffff, min_heigth = 0xffff;
@@ -208,6 +440,53 @@ static int vs_kms_init(struct vs_drm_device *priv)
 	}
 
 	printk("MICHAL vs_kms_init 3\n");
+
+	for (i = 0; i < dc_info->plane_num; i++) {
+		plane_info = (struct vs_plane_info *)&dc_info->info[i];
+
+		plane = vs_plane_create(drm_dev, plane_info, dc_info->layer_num,
+					vs_map_possible_crtc(plane_info->id));
+		plane->id = i;
+		plane->hw_id = plane_info->id;
+		plane->offset = vs_get_addr_offset(plane_info->id);
+		plane->reg = vs_dc_hw_get_plane_regs(plane->hw_id);
+		priv->planes[i] = plane;
+
+		if (plane_info->type == DRM_PLANE_TYPE_PRIMARY) {
+			if (plane_info->id == PRIMARY_PLANE_0)
+				priv->crtc[0]->base.primary = &plane->base;
+			else
+				priv->crtc[1]->base.primary = &plane->base;
+
+			min_width = min_t(u32, min_width,
+					  plane_info->data->min_width);
+			min_heigth = min_t(u32, min_heigth,
+					   plane_info->data->min_height);
+
+			/*
+			 * Note: these values are used for multiple independent things:
+			 * e.g hw display mode filtering, plane buffer sizes.
+			 * Use the combined maximum values here to cover all use cases,
+			 * and do more specific checking in the respective code paths.
+			 */
+			max_width = max_t(u32, max_width,
+					  plane_info->data->max_width);
+			max_height = max_t(u32, max_height,
+					   plane_info->data->max_height);
+		}
+
+		if (plane_info->type == DRM_PLANE_TYPE_CURSOR) {
+			if (plane_info->id == CURSOR_PLANE_0)
+				priv->crtc[0]->base.cursor = &plane->base;
+			else
+				priv->crtc[1]->base.cursor = &plane->base;
+
+			drm_dev->mode_config.cursor_width =
+				plane_info->data->max_width;
+			drm_dev->mode_config.cursor_height =
+				plane_info->data->max_height;
+		}
+	}
 
 	printk("MICHAL vs_kms_init 4\n");
 
@@ -310,6 +589,8 @@ static int vs_drm_bind(struct device *dev)
 		return ret;
 
 	printk("MICHAL vs_drm_bind 4\n");
+
+	vs_mode_config_init(drm_dev);
 
 	/* Remove existing drivers that may own the framebuffer memory. */
 	ret = aperture_remove_all_conflicting_devices(vs_drm_driver.name);

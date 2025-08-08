@@ -311,10 +311,128 @@
 #define DC_DISPLAY_NUM 2
 #define DC_CURSOR_NUM 2
 
+enum dc_hw_plane_id {
+	PRIMARY_PLANE_0,
+	OVERLAY_PLANE_0,
+	OVERLAY_PLANE_1,
+	PRIMARY_PLANE_1,
+	OVERLAY_PLANE_2,
+	OVERLAY_PLANE_3,
+	CURSOR_PLANE_0,
+	CURSOR_PLANE_1,
+	PLANE_NUM
+};
+
+enum dc_hw_color_format {
+	FORMAT_X4R4G4B4,
+	FORMAT_A4R4G4B4,
+	FORMAT_X1R5G5B5,
+	FORMAT_A1R5G5B5,
+	FORMAT_R5G6B5,
+	FORMAT_X8R8G8B8,
+	FORMAT_A8R8G8B8,
+	FORMAT_YUY2,
+	FORMAT_UYVY,
+	FORMAT_INDEX8,
+	FORMAT_MONOCHROME,
+	FORMAT_YV12 = 0xf,
+	FORMAT_A8,
+	FORMAT_NV12,
+	FORMAT_NV16,
+	FORMAT_RG16,
+	FORMAT_R8,
+	FORMAT_NV12_10BIT,
+	FORMAT_A2R10G10B10,
+	FORMAT_NV16_10BIT,
+	FORMAT_INDEX1,
+	FORMAT_INDEX2,
+	FORMAT_INDEX4,
+	FORMAT_P010,
+	FORMAT_YUV444,
+	FORMAT_YUV444_10BIT,
+};
+
+enum dc_hw_yuv_color_space {
+	COLOR_SPACE_601 = 0,
+	COLOR_SPACE_709 = 1,
+	COLOR_SPACE_2020 = 3,
+};
+
+enum dc_hw_rotation {
+	ROT_0 = 0,
+	ROT_90 = 4,
+	ROT_180 = 5,
+	ROT_270 = 6,
+	FLIP_X = 1,
+	FLIP_Y = 2,
+	FLIP_XY = 3,
+};
+
+enum dc_hw_swizzle {
+	SWIZZLE_ARGB = 0,
+	SWIZZLE_RGBA,
+	SWIZZLE_ABGR,
+	SWIZZLE_BGRA,
+};
+
 enum dc_hw_out {
 	OUT_DPI,
 	OUT_DP,
 	OUT_MAX,
+};
+
+enum dc_hw_cursor_size {
+	CURSOR_SIZE_32X32 = 0,
+	CURSOR_SIZE_64X64,
+};
+
+struct dc_hw_plane_reg {
+	u32 y_address;
+	u32 u_address;
+	u32 v_address;
+	u32 y_stride;
+	u32 u_stride;
+	u32 v_stride;
+	u32 size;
+	u32 top_left;
+	u32 bottom_right;
+	u32 scale_factor_x;
+	u32 scale_factor_y;
+	u32 h_filter_coef_index;
+	u32 h_filter_coef_data;
+	u32 v_filter_coef_index;
+	u32 v_filter_coef_data;
+	u32 init_offset;
+	u32 color_key;
+	u32 color_key_high;
+	u32 clear_value;
+	u32 color_table_index;
+	u32 color_table_data;
+	u32 scale_config;
+	u32 water_mark;
+	u32 degamma_index;
+	u32 degamma_data;
+	u32 degamma_ex_data;
+	u32 src_global_color;
+	u32 dst_global_color;
+	u32 blend_config;
+	u32 roi_origin;
+	u32 roi_size;
+	u32 yuv_to_rgb_coef0;
+	u32 yuv_to_rgb_coef1;
+	u32 yuv_to_rgb_coef2;
+	u32 yuv_to_rgb_coef3;
+	u32 yuv_to_rgb_coef4;
+	u32 yuv_to_rgb_coefd0;
+	u32 yuv_to_rgb_coefd1;
+	u32 yuv_to_rgb_coefd2;
+	u32 y_clamp_bound;
+	u32 uv_clamp_bound;
+	u32 rgb_to_rgb_coef0;
+	u32 rgb_to_rgb_coef1;
+	u32 rgb_to_rgb_coef2;
+	u32 rgb_to_rgb_coef3;
+	u32 rgb_to_rgb_coef4;
 };
 
 struct dc_hw_gamma {
@@ -333,7 +451,13 @@ struct dc_hw {
 struct vs_drm_device;
 struct vs_plane;
 
+const struct dc_hw_plane_reg *vs_dc_hw_get_plane_regs(u32 hw_id);
 int vs_dc_hw_init(struct vs_drm_device *priv);
+void vs_dc_hw_disable_plane(struct vs_plane *plane);
+void vs_dc_hw_update_cursor(struct vs_drm_device *priv, u8 crtc_id,
+			    dma_addr_t dma_addr, u32 crtc_w, u32 crtc_x,
+			    u32 crtc_y, s32 hotspot_x, s32 hotspot_y);
+void vs_dc_hw_disable_cursor(struct vs_drm_device *priv, u8 crtc_id);
 void vs_dc_hw_update_gamma(struct vs_drm_device *priv, u8 crtc_id, u16 index,
 			   u16 r, u16 g, u16 b);
 void vs_dc_hw_enable_gamma(struct vs_drm_device *priv, u8 crtc_id, bool enable);
@@ -347,5 +471,26 @@ void vs_dc_hw_get_interrupt(struct vs_drm_device *priv, u8 *status);
 void vs_dc_hw_enable_shadow_register(struct vs_drm_device *priv, bool enable);
 void vs_dc_hw_set_out(struct vs_drm_device *priv, enum dc_hw_out out,
 		      u8 crtc_id);
+
+void vs_dc_plane_hw_update_address(struct vs_plane *plane, u32 format,
+				   dma_addr_t *dma_addr,
+				   struct drm_framebuffer *drm_fb,
+				   struct drm_rect *src);
+
+void vs_dc_plane_hw_update_format_colorspace(struct vs_plane *plane, u32 format,
+					     enum drm_color_encoding encoding,
+					     bool is_yuv);
+
+void vs_dc_plane_hw_update_format(struct vs_plane *plane, u32 format,
+				  enum drm_color_encoding encoding,
+				  unsigned int rotation, bool visible,
+				  unsigned int zpos, u8 display_id);
+
+void vs_dc_plane_hw_update_scale(struct vs_plane *plane, struct drm_rect *src,
+				 struct drm_rect *dst, u8 display_id,
+				 unsigned int rotation);
+
+void vs_dc_plane_hw_update_blend(struct vs_plane *plane, u16 alpha,
+				 u16 pixel_blend_mode, u8 display_id);
 
 #endif /* __VS_DC_HW_H__ */
