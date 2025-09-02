@@ -10,17 +10,14 @@ maintainers:
   - Sandy Huang <hjc@rock-chips.com>
   - Heiko Stuebner <heiko@sntech.de>
 
+allOf:
+  - $ref: ../inno/inno-hdmi-common.yaml
+
 properties:
   compatible:
     enum:
       - rockchip,rk3036-inno-hdmi
       - rockchip,rk3128-inno-hdmi
-
-  reg:
-    maxItems: 1
-
-  interrupts:
-    maxItems: 1
 
   clocks:
     items:
@@ -34,9 +31,6 @@ properties:
 
   power-domains:
     maxItems: 1
-
-  "#sound-dai-cells":
-    const: 0
 
   ports:
     $ref: /schemas/graph.yaml#/properties/ports
@@ -64,12 +58,8 @@ properties:
 
 required:
   - compatible
-  - reg
-  - interrupts
   - clocks
   - clock-names
-  - pinctrl-0
-  - pinctrl-names
   - ports
 
 allOf:

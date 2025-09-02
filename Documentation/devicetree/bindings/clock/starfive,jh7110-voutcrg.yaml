@@ -35,8 +35,13 @@ properties:
       - const: hdmitx0_pixelclk
 
   resets:
-    maxItems: 1
-    description: Vout Top core
+    minItems: 1
+    maxItems: 2
+    description: Resets for the Vout subsystem.
+
+  reset-names:
+    minItems: 1
+    maxItems: 2
 
   '#clock-cells':
     const: 1
