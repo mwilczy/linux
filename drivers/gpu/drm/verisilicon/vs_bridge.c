@@ -27,6 +27,7 @@ static int vs_bridge_attach(struct drm_bridge *bridge,
 			    struct drm_encoder *encoder,
 			    enum drm_bridge_attach_flags flags)
 {
+	printk("MICHAL vs_bridge_attach\n");
 	struct vs_bridge *vbridge = drm_bridge_to_vs_bridge(bridge);
 
 	return drm_bridge_attach(encoder, vbridge->next,
@@ -270,6 +271,8 @@ struct vs_bridge *vs_bridge_init(struct drm_device *drm_dev,
 	enum vs_bridge_output_interface intf;
 	int ret;
 
+	printk("MICHAL vs_bridge_init 1\n");
+
 	intf = vs_bridge_detect_output_interface(drm_dev->dev->of_node,
 						 output);
 	if (intf == -ENODEV) {
@@ -277,13 +280,19 @@ struct vs_bridge *vs_bridge_init(struct drm_device *drm_dev,
 		return NULL;
 	}
 
+	printk("MICHAL vs_bridge_init 2\n");
+
 	bridge = devm_kzalloc(drm_dev->dev, sizeof(*bridge), GFP_KERNEL);
 	if (!bridge)
 		return ERR_PTR(-ENOMEM);
 
+	printk("MICHAL vs_bridge_init 3\n");
+
 	bridge->crtc = crtc;
 	bridge->intf = intf;
 	bridge->base.funcs = &vs_bridge_funcs;
+
+	kref_init(&bridge->base.refcount);
 
 	next = devm_drm_of_get_bridge(drm_dev->dev, drm_dev->dev->of_node,
 				      output, intf);
@@ -291,6 +300,20 @@ struct vs_bridge *vs_bridge_init(struct drm_device *drm_dev,
 		ret = PTR_ERR(next);
 		goto err_free_bridge;
 	}
+
+        if (!next) {
+                printk("MICHAL DEBUG: devm_drm_of_get_bridge returned a NULL bridge!\n");
+                ret = -ENODEV;
+                goto err_free_bridge;
+        }
+        printk("MICHAL DEBUG: Found downstream bridge at address %p\n", next);
+
+	printk(KERN_INFO "MICHAL DEBUG DC DRIVER: Bridge refcount is %d\n",
+               kref_read(&next->refcount));
+                //printk(KERN_INFO "MICHAL DEBUG: Bridge device name: %s\n", dev_name(next->dev->dev));
+	printk("MICHAL DEBUG: Bridge DT node name: %s\n", next->of_node->full_name);
+
+	printk("MICHAL vs_bridge_init 4\n");
 
 	bridge->next = next;
 
@@ -306,6 +329,8 @@ struct vs_bridge *vs_bridge_init(struct drm_device *drm_dev,
 
 	bridge->enc.possible_crtcs = drm_crtc_mask(&crtc->base);
 
+	printk("MICHAL vs_bridge_init 5\n");
+
 	ret = drm_bridge_attach(&bridge->enc, &bridge->base, NULL,
 				DRM_BRIDGE_ATTACH_NO_CONNECTOR);
 	if (ret) {
@@ -313,6 +338,8 @@ struct vs_bridge *vs_bridge_init(struct drm_device *drm_dev,
 			"Cannot attach bridge for output %u\n", output);
 		goto err_cleanup_encoder;
 	}
+
+	printk("MICHAL vs_bridge_init 6\n");
 
 	bridge->conn = drm_bridge_connector_init(drm_dev, &bridge->enc);
 	if (IS_ERR(bridge->conn)) {
@@ -328,7 +355,7 @@ struct vs_bridge *vs_bridge_init(struct drm_device *drm_dev,
 err_cleanup_encoder:
 	drm_encoder_cleanup(&bridge->enc);
 err_free_bridge:
-	devm_kfree(drm_dev->dev, bridge);
+	//devm_kfree(drm_dev->dev, bridge);
 
 	return ERR_PTR(ret);
 }

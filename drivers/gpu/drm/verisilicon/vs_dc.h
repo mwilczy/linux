@@ -18,17 +18,22 @@
 #include "vs_hwdb.h"
 
 #define VSDC_MAX_OUTPUTS 2
-#define VSDC_RESET_COUNT 3
+#define VSDC_RESET_COUNT 4
 
 struct vs_drm_dev;
 struct vs_crtc;
 
 struct vs_dc {
 	struct regmap *regs;
-	struct clk *core_clk;
-	struct clk *axi_clk;
-	struct clk *ahb_clk;
-	struct clk *pix_clk[VSDC_MAX_OUTPUTS];
+
+	/* Clocks */
+	struct clk			*noc_bus_clk; /* For bus access */
+	struct clk			*core_clk;
+	struct clk			*axi_clk;
+	struct clk			*ahb_clk;
+	struct clk			*dc_parent_clk; /* Parent for pixel clocks */
+	struct clk			*pix_clk[VSDC_MAX_OUTPUTS];
+
 	struct reset_control_bulk_data rsts[VSDC_RESET_COUNT];
 
 	struct vs_drm_dev *drm_dev;

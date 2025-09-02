@@ -61,6 +61,8 @@ static void vs_crtc_atomic_enable(struct drm_crtc *crtc,
 
 	DRM_DEBUG_DRIVER("Enabling CRTC %u\n", output);
 
+	printk("MICHAL CRTC ATOMIC ENABLE !!!!!!! OUTPTU = %u\n", output);
+
 	WARN_ON(clk_prepare_enable(dc->pix_clk[output]));
 
 	drm_crtc_vblank_on(crtc);
@@ -107,14 +109,20 @@ vs_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 	unsigned int output = vcrtc->id;
 	long rate;
 
+	printk("MICHAL vs_crtc_mode_valid 1\n");
+
 	if (mode->htotal > 0x7FFF)
 		return MODE_BAD_HVALUE;
 	if (mode->vtotal > 0x7FFF)
 		return MODE_BAD_VVALUE;
 
-	rate = clk_round_rate(dc->pix_clk[output], mode->clock * 1000);
-	if (rate <= 0)
-		return MODE_CLOCK_RANGE;
+	printk("MICHAL vs_crtc_mode_valid 2\n");
+
+	//rate = clk_round_rate(dc->pix_clk[output], mode->clock * 1000);
+	//if (rate <= 0)
+	//	return MODE_CLOCK_RANGE;
+
+	printk("MICHAL vs_crtc_mode_valid 3\n");
 
 	return MODE_OK;
 }
