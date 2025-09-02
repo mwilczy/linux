@@ -48,4 +48,10 @@ struct inno_hdmi {
 struct inno_hdmi *inno_hdmi_bind(struct device *pdev,
 				 struct drm_encoder *encoder,
 				 const struct inno_hdmi_plat_data *plat_data);
+
+struct inno_hdmi *inno_hdmi_probe(struct platform_device *pdev,
+				 const struct inno_hdmi_plat_data *plat_data);
+
+void inno_hdmi_remove(struct inno_hdmi *hdmi);
+
 #endif /* __INNO_HDMI__ */

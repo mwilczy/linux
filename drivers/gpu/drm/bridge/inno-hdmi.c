@@ -832,17 +832,23 @@ static enum drm_mode_status inno_hdmi_bridge_mode_valid(struct drm_bridge *bridg
 	unsigned long mpixelclk, max_tolerance;
 	long rounded_refclk;
 
+	dev_info(hdmi->dev, "MICHAL: %s: entry\n", __func__);
+
 	/* No support for double-clock modes */
 	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
 		return MODE_BAD;
 
 	mpixelclk = mode->clock * 1000;
 
-	if (mpixelclk < INNO_HDMI_MIN_TMDS_CLOCK)
+	if (mpixelclk < INNO_HDMI_MIN_TMDS_CLOCK) {
+		dev_info(hdmi->dev, "MICHAL: %s: MODE_CLOCK_LOW\n", __func__);
 		return MODE_CLOCK_LOW;
+	}
 
-	if (inno_hdmi_find_phy_config(hdmi, mpixelclk) < 0)
+	if (inno_hdmi_find_phy_config(hdmi, mpixelclk) < 0) {
+		dev_info(hdmi->dev, "MICHAL: %s: MODE_CLOCK_HIGH\n", __func__);
 		return MODE_CLOCK_HIGH;
+	}
 
 	if (hdmi->refclk) {
 		rounded_refclk = clk_round_rate(hdmi->refclk, mpixelclk);
@@ -854,6 +860,8 @@ static enum drm_mode_status inno_hdmi_bridge_mode_valid(struct drm_bridge *bridg
 		if (abs_diff((unsigned long)rounded_refclk, mpixelclk) > max_tolerance)
 			return MODE_NOCLOCK;
 	}
+
+	dev_info(hdmi->dev, "MICHAL: %s: exit, \n", __func__);
 
 	return MODE_OK;
 }
@@ -1083,87 +1091,148 @@ static struct i2c_adapter *inno_hdmi_i2c_adapter(struct inno_hdmi *hdmi)
 	return adap;
 }
 
-struct inno_hdmi *inno_hdmi_bind(struct device *dev,
-				 struct drm_encoder *encoder,
-				 const struct inno_hdmi_plat_data *plat_data)
+/**
+ * __inno_hdmi_probe - Internal helper to perform common setup
+ * @pdev: platform device
+ * @plat_data: SoC-specific platform data
+ *
+ * This function handles all the common hardware setup: allocating the main
+ * struct, mapping registers, getting clocks, initializing the hardware,
+ * setting up the IRQ, and initializing the DDC adapter and bridge struct.
+ * It returns a pointer to the inno_hdmi struct on success, or an ERR_PTR
+ * on failure.
+ */
+static struct inno_hdmi *__inno_hdmi_probe(struct platform_device *pdev,
+                                          const struct inno_hdmi_plat_data *plat_data)
 {
-	struct platform_device *pdev = to_platform_device(dev);
+	struct device *dev = &pdev->dev;
 	struct inno_hdmi *hdmi;
-	int irq;
-	int ret;
+	int irq, ret;
 
-	dev_info(dev, "MICHAL: %s: entry\n", __func__);
 	if (!plat_data || !plat_data->phy_configs || !plat_data->default_phy_config) {
-		dev_err(dev, "MICHAL: Missing platform data or PHY ops\n");
+		dev_err(dev, "Missing platform data\n");
 		return ERR_PTR(-ENODEV);
 	}
 
 	hdmi = devm_drm_bridge_alloc(dev, struct inno_hdmi, bridge, &inno_hdmi_bridge_funcs);
 	if (IS_ERR(hdmi))
-		return ERR_CAST(hdmi);
-	dev_info(dev, "MICHAL: %s: Bridge allocated\n", __func__);
+		return hdmi;
 
 	hdmi->dev = dev;
 	hdmi->plat_data = plat_data;
 
 	hdmi->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(hdmi->regs))
-		return ERR_CAST(hdmi->regs);
-	dev_info(dev, "MICHAL: %s: Registers mapped\n", __func__);
+		return hdmi->regs;
 
 	hdmi->pclk = devm_clk_get_enabled(hdmi->dev, "pclk");
 	if (IS_ERR(hdmi->pclk)) {
-		dev_err_probe(dev, PTR_ERR(hdmi->pclk), "MICHAL: Unable to get HDMI pclk\n");
-		return ERR_CAST(hdmi->pclk);
+		dev_err(dev, "Unable to get HDMI pclk: %ld\n", PTR_ERR(hdmi->pclk));
+                return ERR_CAST(hdmi->pclk);
 	}
-	dev_info(dev, "MICHAL: %s: pclk enabled\n", __func__);
 
 	hdmi->refclk = devm_clk_get_optional_enabled(hdmi->dev, "ref");
 	if (IS_ERR(hdmi->refclk)) {
-		dev_err_probe(dev, PTR_ERR(hdmi->refclk), "MICHAL: Unable to get HDMI refclk\n");
-		return ERR_CAST(hdmi->refclk);
+		dev_err(dev, "Unable to get HDMI refclk: %ld\n", PTR_ERR(hdmi->refclk));
+                return ERR_CAST(hdmi->refclk);
 	}
-	dev_info(dev, "MICHAL: %s: refclk handled\n", __func__);
 
 	inno_hdmi_init_hw(hdmi);
 
 	irq = platform_get_irq(pdev, 0);
-	if (irq < 0)
-		return ERR_PTR(irq);
-	dev_info(dev, "MICHAL: %s: Got IRQ %d\n", __func__, irq);
-
-	ret = devm_request_threaded_irq(dev, irq, inno_hdmi_hardirq,
-					inno_hdmi_irq, IRQF_SHARED,
-					dev_name(dev), hdmi);
-	if (ret)
-		return ERR_PTR(ret);
-	dev_info(dev, "MICHAL: %s: Requested IRQ\n", __func__);
+	if (irq > 0) {
+		ret = devm_request_threaded_irq(dev, irq, inno_hdmi_hardirq,
+						inno_hdmi_irq, IRQF_SHARED,
+						dev_name(dev), hdmi);
+		if (ret)
+			return ERR_PTR(ret);
+	}
 
 	hdmi->bridge.driver_private = hdmi;
-	hdmi->bridge.ops = DRM_BRIDGE_OP_DETECT |
-			   DRM_BRIDGE_OP_EDID |
-			   DRM_BRIDGE_OP_HDMI |
-			   DRM_BRIDGE_OP_HPD;
-	hdmi->bridge.of_node = pdev->dev.of_node;
+	hdmi->bridge.ops = DRM_BRIDGE_OP_DETECT | DRM_BRIDGE_OP_EDID |
+			   DRM_BRIDGE_OP_HDMI | DRM_BRIDGE_OP_HPD;
+	hdmi->bridge.of_node = dev->of_node;
 	hdmi->bridge.type = DRM_MODE_CONNECTOR_HDMIA;
-	hdmi->bridge.vendor = "Inno";
-	hdmi->bridge.product = "Inno HDMI";
+
+	hdmi->bridge.vendor = "inno";
+        hdmi->bridge.product = "hdmi-tx";
 
 	hdmi->bridge.ddc = inno_hdmi_i2c_adapter(hdmi);
 	if (IS_ERR(hdmi->bridge.ddc))
 		return ERR_CAST(hdmi->bridge.ddc);
 
-	ret = devm_drm_bridge_add(dev, &hdmi->bridge);
+	return hdmi;
+}
+
+/**
+ * inno_hdmi_probe - Create a self-contained, discoverable HDMI bridge
+ * @pdev: platform device
+ * @plat_data: SoC-specific platform data
+ *
+ * This is the preferred function for modern, decoupled glue drivers. It
+ * creates the bridge and registers it with the DRM framework, making it
+ * discoverable via of_graph helpers.
+ */
+struct inno_hdmi *inno_hdmi_probe(struct platform_device *pdev,
+				 const struct inno_hdmi_plat_data *plat_data)
+{
+	struct inno_hdmi *hdmi;
+	int ret;
+
+	hdmi = __inno_hdmi_probe(pdev, plat_data);
+	if (IS_ERR(hdmi))
+		return hdmi;
+
+	ret = devm_drm_bridge_add(hdmi->dev, &hdmi->bridge);
+	if(ret)
+		return ERR_PTR(ret);
+
+	return hdmi;
+}
+EXPORT_SYMBOL_GPL(inno_hdmi_probe);
+
+/**
+ * inno_hdmi_remove - Remove a bridge created by inno_hdmi_probe
+ * @hdmi: The inno_hdmi instance to remove
+ */
+void inno_hdmi_remove(struct inno_hdmi *hdmi)
+{
+	drm_bridge_remove(&hdmi->bridge);
+}
+EXPORT_SYMBOL_GPL(inno_hdmi_remove);
+
+/**
+ * inno_hdmi_bind - Function to bind to a pre-existing encoder
+ * @dev: device to bind
+ * @encoder: the encoder to attach the new bridge to
+ * @plat_data: SoC-specific platform data
+ *
+ * This function is for tightly-coupled drivers that manage the encoder
+ * creation and attachment manually.
+ */
+struct inno_hdmi *inno_hdmi_bind(struct device *dev,
+				 struct drm_encoder *encoder,
+				 const struct inno_hdmi_plat_data *plat_data)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct inno_hdmi *hdmi;
+	int ret;
+
+	hdmi = __inno_hdmi_probe(pdev, plat_data);
+	if (IS_ERR(hdmi))
+		return hdmi;
+
+	ret = drm_bridge_attach(encoder, &hdmi->bridge, NULL,
+				DRM_BRIDGE_ATTACH_NO_CONNECTOR);
 	if (ret)
 		return ERR_PTR(ret);
-	dev_info(dev, "MICHAL: %s: DRM bridge added\n", __func__);
 
-	ret = drm_bridge_attach(encoder, &hdmi->bridge, NULL, DRM_BRIDGE_ATTACH_NO_CONNECTOR);
-	if (ret)
-		return ERR_PTR(ret);
-	dev_info(dev, "MICHAL: %s: Bridge attached to encoder\n", __func__);
+	/*
+	 * Note: The bridge is NOT added with drm_bridge_add(). The attach
+	 * function handles linking it to the DRM device. Memory is managed
+	 * by the caller via devm.
+	 */
 
-	dev_info(dev, "MICHAL: %s: exit (SUCCESS)\n", __func__);
 	return hdmi;
 }
 EXPORT_SYMBOL_GPL(inno_hdmi_bind);

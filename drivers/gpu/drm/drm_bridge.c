@@ -223,6 +223,9 @@ struct drm_bridge *drm_bridge_get(struct drm_bridge *bridge)
 	if (bridge)
 		kref_get(&bridge->refcount);
 
+
+	dump_stack();
+
 	return bridge;
 }
 EXPORT_SYMBOL(drm_bridge_get);
@@ -236,6 +239,8 @@ EXPORT_SYMBOL(drm_bridge_get);
  */
 void drm_bridge_put(struct drm_bridge *bridge)
 {
+	dump_stack();
+
 	if (bridge)
 		kref_put(&bridge->refcount, __drm_bridge_free);
 }
@@ -411,10 +416,16 @@ int drm_bridge_attach(struct drm_encoder *encoder, struct drm_bridge *bridge,
 {
 	int ret;
 
+	printk("MICHAL drm_bridge_attach 1\n");
+
 	if (!encoder || !bridge)
 		return -EINVAL;
 
+	printk("MICHAL drm_bridge_attach 2\n");
+
 	drm_bridge_get(bridge);
+
+	printk("MICHAL drm_bridge_attach 3\n");
 
 	if (previous && (!previous->dev || previous->encoder != encoder)) {
 		ret = -EINVAL;
@@ -429,6 +440,7 @@ int drm_bridge_attach(struct drm_encoder *encoder, struct drm_bridge *bridge,
 	bridge->dev = encoder->dev;
 	bridge->encoder = encoder;
 
+	printk("MICHAL drm_bridge_attach 4\n");
 	if (previous)
 		list_add(&bridge->chain_node, &previous->chain_node);
 	else
@@ -439,6 +451,8 @@ int drm_bridge_attach(struct drm_encoder *encoder, struct drm_bridge *bridge,
 		if (ret < 0)
 			goto err_reset_bridge;
 	}
+
+	printk("MICHAL drm_bridge_attach 5\n");
 
 	if (drm_bridge_is_atomic(bridge)) {
 		struct drm_bridge_state *state;
@@ -1398,6 +1412,8 @@ struct drm_bridge *of_drm_find_bridge(struct device_node *np)
 	struct drm_bridge *bridge;
 
 	mutex_lock(&bridge_lock);
+
+	//printk("MICHAL looking for bridge %s\n", np->name);
 
 	list_for_each_entry(bridge, &bridge_list, list) {
 		if (bridge->of_node == np) {
