@@ -110,22 +110,23 @@
 };
 
 &dc8200 {
+	assigned-clocks = <&voutcrg JH7110_VOUTCLK_DC8200_PIX>;
+	assigned-clock-rates = <74250000>;
 	status = "okay";
-
 
 	dpu_port0: port@0 {
 		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		dpu_out_dpi0: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&hdmi_in>;
+		};
 	};
 
 	dpu_port1: port@1 {
 		reg = <1>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		dpu_out_dp1: endpoint@1 {
-			reg = <1>;
-			remote-endpoint = <&hdmi_in>;
-		};
 	};
 };
 
@@ -158,7 +159,7 @@
 		reg = <0>;
 
 		hdmi_in: endpoint {
-			remote-endpoint = <&dpu_out_dp1>;
+			remote-endpoint = <&dpu_out_dpi0>;
 		};
 	};
 
@@ -169,7 +170,6 @@
 		};
 
 	};
-
 };
 
 &hdmitx0_pixelclk {
