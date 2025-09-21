@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2025 Icenowy Zheng <uwu@icenowy.me>
  */
@@ -27,7 +27,6 @@ static int vs_bridge_attach(struct drm_bridge *bridge,
 			    struct drm_encoder *encoder,
 			    enum drm_bridge_attach_flags flags)
 {
-	printk("MICHAL vs_bridge_attach\n");
 	struct vs_bridge *vbridge = drm_bridge_to_vs_bridge(bridge);
 
 	return drm_bridge_attach(encoder, vbridge->next,
@@ -46,7 +45,6 @@ static struct vsdc_dp_format vsdc_dp_supported_fmts[] = {
 	{ MEDIA_BUS_FMT_RGB888_1X24, false, VSDC_DISP_DP_CONFIG_FMT_RGB888 },
 	{ MEDIA_BUS_FMT_RGB565_1X16, false, VSDC_DISP_DP_CONFIG_FMT_RGB565 },
 	{ MEDIA_BUS_FMT_RGB666_1X18, false, VSDC_DISP_DP_CONFIG_FMT_RGB666 },
-	{ MEDIA_BUS_FMT_RGB888_1X24, false, VSDC_DISP_DP_CONFIG_FMT_RGB888 },
 	{ MEDIA_BUS_FMT_RGB101010_1X30,
 	  false, VSDC_DISP_DP_CONFIG_FMT_RGB101010 },
 	{ MEDIA_BUS_FMT_UYVY8_1X16, true, VSDC_DISP_DP_CONFIG_YUV_FMT_UYVY8 },
@@ -66,12 +64,11 @@ static u32 *vs_bridge_atomic_get_output_bus_fmts(struct drm_bridge *bridge,
 					unsigned int *num_output_fmts)
 {
 	struct vs_bridge *vbridge = drm_bridge_to_vs_bridge(bridge);
-	struct drm_connector *conn = conn_state->connector;
 	u32 *output_fmts;
-	unsigned i;
+	unsigned int i;
 
 	if (vbridge->intf == VSDC_OUTPUT_INTERFACE_DPI)
-		*num_output_fmts = 1;
+		*num_output_fmts = 2;
 	else
 		*num_output_fmts = ARRAY_SIZE(vsdc_dp_supported_fmts);
 
@@ -81,11 +78,9 @@ static u32 *vs_bridge_atomic_get_output_bus_fmts(struct drm_bridge *bridge,
 		return NULL;
 
 	if (vbridge->intf == VSDC_OUTPUT_INTERFACE_DPI) {
-		if (conn->display_info.num_bus_formats &&
-		    conn->display_info.bus_formats)
-			output_fmts[0] = conn->display_info.bus_formats[0];
-		else
-			output_fmts[0] = MEDIA_BUS_FMT_FIXED;
+		/* TODO: support more DPI output formats */
+		output_fmts[0] = MEDIA_BUS_FMT_RGB888_1X24;
+		output_fmts[1] = MEDIA_BUS_FMT_FIXED;
 	} else {
 		for (i = 0; i < *num_output_fmts; i++)
 			output_fmts[i] = vsdc_dp_supported_fmts[i].linux_fmt;
@@ -96,13 +91,13 @@ static u32 *vs_bridge_atomic_get_output_bus_fmts(struct drm_bridge *bridge,
 
 static bool vs_bridge_out_dp_fmt_supported(u32 out_fmt)
 {
-	unsigned i;
+	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(vsdc_dp_supported_fmts); i++)
 		if (vsdc_dp_supported_fmts[i].linux_fmt == out_fmt)
-			break;
+			return true;
 
-	return !(i == ARRAY_SIZE(vsdc_dp_supported_fmts));
+	return false;
 }
 
 static u32 *vs_bridge_atomic_get_input_bus_fmts(struct drm_bridge *bridge,
@@ -153,7 +148,7 @@ static void vs_bridge_atomic_enable(struct drm_bridge *bridge,
 	struct vs_dc *dc = crtc->dc;
 	unsigned int output = crtc->id;
 	u32 dp_fmt;
-	unsigned i;
+	unsigned int i;
 
 	DRM_DEBUG_DRIVER("Enabling output %u\n", output);
 
@@ -161,6 +156,8 @@ static void vs_bridge_atomic_enable(struct drm_bridge *bridge,
 	case VSDC_OUTPUT_INTERFACE_DPI:
 		regmap_clear_bits(dc->regs, VSDC_DISP_DP_CONFIG(output),
 				  VSDC_DISP_DP_CONFIG_DP_EN);
+		regmap_write(dc->regs, VSDC_DISP_DPI_CONFIG(output),
+			     VSDC_DISP_DPI_CONFIG_FMT_RGB888);
 		break;
 	case VSDC_OUTPUT_INTERFACE_DP:
 		for (i = 0; i < ARRAY_SIZE(vsdc_dp_supported_fmts); i++) {
@@ -168,18 +165,15 @@ static void vs_bridge_atomic_enable(struct drm_bridge *bridge,
 			    vbridge->output_bus_fmt)
 				break;
 		}
-		if (i == ARRAY_SIZE(vsdc_dp_supported_fmts)) {
-			BUG();
-		} else {
-			dp_fmt = vsdc_dp_supported_fmts[i].vsdc_fmt;
-			dp_fmt |= VSDC_DISP_DP_CONFIG_DP_EN;
-			regmap_write(dc->regs, VSDC_DISP_DP_CONFIG(output),
-				     dp_fmt);
-			regmap_assign_bits(dc->regs,
-					   VSDC_DISP_PANEL_CONFIG(output),
-					   VSDC_DISP_PANEL_CONFIG_YUV,
-					   vsdc_dp_supported_fmts[i].is_yuv);
-		}
+		if (WARN_ON_ONCE(i == ARRAY_SIZE(vsdc_dp_supported_fmts)))
+			return;
+		dp_fmt = vsdc_dp_supported_fmts[i].vsdc_fmt;
+		dp_fmt |= VSDC_DISP_DP_CONFIG_DP_EN;
+		regmap_write(dc->regs, VSDC_DISP_DP_CONFIG(output), dp_fmt);
+		regmap_assign_bits(dc->regs,
+				   VSDC_DISP_PANEL_CONFIG(output),
+				   VSDC_DISP_PANEL_CONFIG_YUV,
+				   vsdc_dp_supported_fmts[i].is_yuv);
 		break;
 	}
 
@@ -259,6 +253,9 @@ static int vs_bridge_detect_output_interface(struct device_node *of_node,
 			ret = -ENODEV;
 	}
 
+	if (remote)
+		of_node_put(remote);
+
 	return ret;
 }
 
@@ -269,9 +266,7 @@ struct vs_bridge *vs_bridge_init(struct drm_device *drm_dev,
 	struct vs_bridge *bridge;
 	struct drm_bridge *next;
 	enum vs_bridge_output_interface intf;
-	int ret;
-
-	printk("MICHAL vs_bridge_init 1\n");
+	int ret, enctype;
 
 	intf = vs_bridge_detect_output_interface(drm_dev->dev->of_node,
 						 output);
@@ -280,82 +275,56 @@ struct vs_bridge *vs_bridge_init(struct drm_device *drm_dev,
 		return NULL;
 	}
 
-	printk("MICHAL vs_bridge_init 2\n");
-
-	bridge = devm_kzalloc(drm_dev->dev, sizeof(*bridge), GFP_KERNEL);
-	if (!bridge)
-		return ERR_PTR(-ENOMEM);
-
-	printk("MICHAL vs_bridge_init 3\n");
-
-	bridge->crtc = crtc;
-	bridge->intf = intf;
-	bridge->base.funcs = &vs_bridge_funcs;
-
-	kref_init(&bridge->base.refcount);
-
 	next = devm_drm_of_get_bridge(drm_dev->dev, drm_dev->dev->of_node,
 				      output, intf);
 	if (IS_ERR(next)) {
 		ret = PTR_ERR(next);
-		goto err_free_bridge;
+		dev_err_probe(drm_dev->dev, ret,
+			      "Cannot get downstream bridge of output %u\n",
+			      output);
+		return ERR_PTR(ret);
 	}
 
-        if (!next) {
-                printk("MICHAL DEBUG: devm_drm_of_get_bridge returned a NULL bridge!\n");
-                ret = -ENODEV;
-                goto err_free_bridge;
-        }
-        printk("MICHAL DEBUG: Found downstream bridge at address %p\n", next);
+	bridge = devm_drm_bridge_alloc(drm_dev->dev, struct vs_bridge, base,
+				       &vs_bridge_funcs);
+	if (!bridge)
+		return ERR_PTR(-ENOMEM);
 
-	printk(KERN_INFO "MICHAL DEBUG DC DRIVER: Bridge refcount is %d\n",
-               kref_read(&next->refcount));
-                //printk(KERN_INFO "MICHAL DEBUG: Bridge device name: %s\n", dev_name(next->dev->dev));
-	printk("MICHAL DEBUG: Bridge DT node name: %s\n", next->of_node->full_name);
-
-	printk("MICHAL vs_bridge_init 4\n");
-
+	bridge->crtc = crtc;
+	bridge->intf = intf;
 	bridge->next = next;
 
-	ret = drm_simple_encoder_init(drm_dev, &bridge->enc,
-				      (intf == VSDC_OUTPUT_INTERFACE_DPI) ?
-				      DRM_MODE_ENCODER_DPI :
-				      DRM_MODE_ENCODER_NONE);
-	if (ret) {
+	if (intf == VSDC_OUTPUT_INTERFACE_DPI)
+		enctype = DRM_MODE_ENCODER_DPI;
+	else
+		enctype = DRM_MODE_ENCODER_NONE;
+
+	bridge->enc = drmm_plain_encoder_alloc(drm_dev, NULL, enctype, NULL);
+	if (IS_ERR(bridge->enc)) {
 		dev_err(drm_dev->dev,
 			"Cannot initialize encoder for output %u\n", output);
-		goto err_free_bridge;
+		ret = PTR_ERR(bridge->enc);
+		return ERR_PTR(ret);
 	}
 
-	bridge->enc.possible_crtcs = drm_crtc_mask(&crtc->base);
+	bridge->enc->possible_crtcs = drm_crtc_mask(&crtc->base);
 
-	printk("MICHAL vs_bridge_init 5\n");
-
-	ret = drm_bridge_attach(&bridge->enc, &bridge->base, NULL,
+	ret = drm_bridge_attach(bridge->enc, &bridge->base, NULL,
 				DRM_BRIDGE_ATTACH_NO_CONNECTOR);
 	if (ret) {
 		dev_err(drm_dev->dev,
 			"Cannot attach bridge for output %u\n", output);
-		goto err_cleanup_encoder;
+		return ERR_PTR(ret);
 	}
 
-	printk("MICHAL vs_bridge_init 6\n");
-
-	bridge->conn = drm_bridge_connector_init(drm_dev, &bridge->enc);
+	bridge->conn = drm_bridge_connector_init(drm_dev, bridge->enc);
 	if (IS_ERR(bridge->conn)) {
 		dev_err(drm_dev->dev,
 			"Cannot create connector for output %u\n", output);
 		ret = PTR_ERR(bridge->conn);
-		goto err_cleanup_encoder;
+		return ERR_PTR(ret);
 	}
-	drm_connector_attach_encoder(bridge->conn, &bridge->enc);
+	drm_connector_attach_encoder(bridge->conn, bridge->enc);
 
 	return bridge;
-
-err_cleanup_encoder:
-	drm_encoder_cleanup(&bridge->enc);
-err_free_bridge:
-	//devm_kfree(drm_dev->dev, bridge);
-
-	return ERR_PTR(ret);
 }

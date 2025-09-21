@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2025 Icenowy Zheng <uwu@icenowy.me>
  */
@@ -33,8 +33,7 @@ static int vs_primary_plane_atomic_check(struct drm_plane *plane,
 	if (!crtc)
 		return 0;
 
-	crtc_state = drm_atomic_get_existing_crtc_state(state,
-							crtc);
+	crtc_state = drm_atomic_get_existing_crtc_state(state, crtc);
 	if (WARN_ON(!crtc_state))
 		return -EINVAL;
 
@@ -63,11 +62,11 @@ static void vs_primary_plane_atomic_update(struct drm_plane *plane,
 	if (!crtc)
 		return;
 
-	DRM_DEBUG_DRIVER("Updating output %d primary plane\n", output);
-
 	vcrtc = drm_crtc_to_vs_crtc(crtc);
 	output = vcrtc->id;
 	dc = vcrtc->dc;
+
+	DRM_DEBUG_DRIVER("Updating output %d primary plane\n", output);
 
 	regmap_update_bits(dc->regs, VSDC_FB_CONFIG_EX(output),
 			   VSDC_FB_CONFIG_EX_DISPLAY_ID_MASK,
@@ -132,7 +131,6 @@ static const struct drm_plane_helper_funcs vs_primary_plane_helper_funcs = {
 static const struct drm_plane_funcs vs_primary_plane_funcs = {
 	.atomic_destroy_state	= drm_atomic_helper_plane_destroy_state,
 	.atomic_duplicate_state	= drm_atomic_helper_plane_duplicate_state,
-	.destroy		= drm_plane_cleanup,
 	.disable_plane		= drm_atomic_helper_disable_plane,
 	.reset			= drm_atomic_helper_plane_reset,
 	.update_plane		= drm_atomic_helper_update_plane,
@@ -141,24 +139,17 @@ static const struct drm_plane_funcs vs_primary_plane_funcs = {
 struct drm_plane *vs_primary_plane_init(struct drm_device *drm_dev, struct vs_dc *dc)
 {
 	struct drm_plane *plane;
-	int ret;
 
-	plane = devm_kzalloc(drm_dev->dev, sizeof(*plane), GFP_KERNEL);
-	if (!plane)
-		return ERR_PTR(-ENOMEM);
+	plane = drmm_universal_plane_alloc(drm_dev, struct drm_plane, dev, 0,
+					   &vs_primary_plane_funcs,
+					   dc->identity.formats->array,
+					   dc->identity.formats->num,
+					   NULL,
+					   DRM_PLANE_TYPE_PRIMARY,
+					   NULL);
 
-	ret = drm_universal_plane_init(drm_dev, plane, 0,
-				       &vs_primary_plane_funcs,
-				       dc->identity.formats->array,
-				       dc->identity.formats->num,
-				       NULL,
-				       DRM_PLANE_TYPE_PRIMARY,
-				       NULL);
-
-	if (ret) {
-		devm_kfree(drm_dev->dev, plane);
-		return ERR_PTR(ret);
-	}
+	if (IS_ERR(plane))
+		return plane;
 
 	drm_plane_helper_add(plane, &vs_primary_plane_helper_funcs);
 

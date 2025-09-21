@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2025 Icenowy Zheng <uwu@icenowy.me>
  */
@@ -21,7 +21,7 @@ enum vs_bridge_output_interface {
 
 struct vs_bridge {
 	struct drm_bridge base;
-	struct drm_encoder enc;
+	struct drm_encoder *enc;
 	struct drm_connector *conn;
 
 	struct vs_crtc *crtc;

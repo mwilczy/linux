@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2025 Icenowy Zheng <uwu@icenowy.me>
  *
@@ -21,6 +21,13 @@
 #define VSDC_DISP_PANEL_CONFIG_RUNNING		BIT(12)
 #define VSDC_DISP_PANEL_CONFIG_GAMMA		BIT(13)
 #define VSDC_DISP_PANEL_CONFIG_YUV		BIT(16)
+
+#define VSDC_DISP_DPI_CONFIG(n)			(0x14B8 + 0x4 * (n))
+#define VSDC_DISP_DPI_CONFIG_FMT_MASK		GENMASK(2, 0)
+#define VSDC_DISP_DPI_CONFIG_FMT_RGB565		(0)
+#define VSDC_DISP_DPI_CONFIG_FMT_RGB666		(3)
+#define VSDC_DISP_DPI_CONFIG_FMT_RGB888		(5)
+#define VSDC_DISP_DPI_CONFIG_FMT_RGB101010	(6)
 
 #define VSDC_DISP_PANEL_START			0x1CCC
 #define VSDC_DISP_PANEL_START_RUNNING(n)	BIT(n)

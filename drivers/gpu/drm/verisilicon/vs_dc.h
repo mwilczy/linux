@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2025 Icenowy Zheng <uwu@icenowy.me>
  *
@@ -25,15 +25,11 @@ struct vs_crtc;
 
 struct vs_dc {
 	struct regmap *regs;
-
-	/* Clocks */
-	struct clk			*noc_bus_clk; /* For bus access */
-	struct clk			*core_clk;
-	struct clk			*axi_clk;
-	struct clk			*ahb_clk;
-	struct clk			*dc_parent_clk; /* Parent for pixel clocks */
-	struct clk			*pix_clk[VSDC_MAX_OUTPUTS];
-
+	struct clk *noc_bus_clk;
+	struct clk *core_clk;
+	struct clk *axi_clk;
+	struct clk *ahb_clk;
+	struct clk *pix_clk[VSDC_MAX_OUTPUTS];
 	struct reset_control_bulk_data rsts[VSDC_RESET_COUNT];
 
 	struct vs_drm_dev *drm_dev;

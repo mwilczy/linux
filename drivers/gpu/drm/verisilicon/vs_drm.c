@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2025 Icenowy Zheng <uwu@icenowy.me>
  */
@@ -86,7 +86,7 @@ int vs_drm_initialize(struct vs_dc *dc, struct platform_device *pdev)
 	struct drm_device *drm;
 	struct vs_crtc *crtc;
 	struct vs_bridge *bridge;
-	unsigned i;
+	unsigned int i;
 	int ret;
 
 	vdrm = devm_drm_dev_alloc(dev, &vs_drm_driver, struct vs_drm_dev, base);
@@ -160,7 +160,7 @@ void vs_drm_shutdown_handler(struct vs_dc *dc)
 
 irqreturn_t vs_drm_handle_irq(struct vs_dc *dc, u32 irqs)
 {
-	unsigned i;
+	unsigned int i;
 
 	for (i = 0; i < dc->outputs; i++) {
 		if (irqs & VSDC_TOP_IRQ_VSYNC(i)) {

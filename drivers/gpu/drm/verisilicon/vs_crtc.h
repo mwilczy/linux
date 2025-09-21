@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2025 Icenowy Zheng <uwu@icenowy.me>
  */

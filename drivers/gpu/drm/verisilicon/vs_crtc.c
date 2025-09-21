@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2025 Icenowy Zheng <uwu@icenowy.me>
  */
@@ -9,6 +9,7 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_print.h>
+#include <drm/drm_managed.h>
 
 #include "vs_crtc_regs.h"
 #include "vs_crtc.h"
@@ -61,8 +62,6 @@ static void vs_crtc_atomic_enable(struct drm_crtc *crtc,
 
 	DRM_DEBUG_DRIVER("Enabling CRTC %u\n", output);
 
-	printk("MICHAL CRTC ATOMIC ENABLE !!!!!!! OUTPTU = %u\n", output);
-
 	WARN_ON(clk_prepare_enable(dc->pix_clk[output]));
 
 	drm_crtc_vblank_on(crtc);
@@ -109,20 +108,14 @@ vs_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 	unsigned int output = vcrtc->id;
 	long rate;
 
-	printk("MICHAL vs_crtc_mode_valid 1\n");
-
 	if (mode->htotal > 0x7FFF)
 		return MODE_BAD_HVALUE;
 	if (mode->vtotal > 0x7FFF)
 		return MODE_BAD_VVALUE;
 
-	printk("MICHAL vs_crtc_mode_valid 2\n");
-
-	//rate = clk_round_rate(dc->pix_clk[output], mode->clock * 1000);
-	//if (rate <= 0)
-	//	return MODE_CLOCK_RANGE;
-
-	printk("MICHAL vs_crtc_mode_valid 3\n");
+	rate = clk_round_rate(dc->pix_clk[output], mode->clock * 1000);
+	if (rate <= 0)
+		return MODE_CLOCK_RANGE;
 
 	return MODE_OK;
 }
@@ -181,7 +174,6 @@ static void vs_crtc_disable_vblank(struct drm_crtc *crtc)
 static const struct drm_crtc_funcs vs_crtc_funcs = {
 	.atomic_destroy_state	= drm_atomic_helper_crtc_destroy_state,
 	.atomic_duplicate_state	= drm_atomic_helper_crtc_duplicate_state,
-	.destroy		= drm_crtc_cleanup,
 	.page_flip		= drm_atomic_helper_page_flip,
 	.reset			= drm_atomic_helper_crtc_reset,
 	.set_config		= drm_atomic_helper_set_config,
@@ -196,7 +188,7 @@ struct vs_crtc *vs_crtc_init(struct drm_device *drm_dev, struct vs_dc *dc,
 	struct drm_plane *primary;
 	int ret;
 
-	vcrtc = devm_kzalloc(drm_dev->dev, sizeof(*vcrtc), GFP_KERNEL);
+	vcrtc = drmm_kzalloc(drm_dev, sizeof(*vcrtc), GFP_KERNEL);
 	if (!vcrtc)
 		return ERR_PTR(-ENOMEM);
 	vcrtc->dc = dc;
@@ -209,11 +201,11 @@ struct vs_crtc *vs_crtc_init(struct drm_device *drm_dev, struct vs_dc *dc,
 		return ERR_PTR(PTR_ERR(primary));
 	}
 
-	ret = drm_crtc_init_with_planes(drm_dev, &vcrtc->base,
-					primary,
-					NULL,
-					&vs_crtc_funcs,
-					NULL);
+	ret = drmm_crtc_init_with_planes(drm_dev, &vcrtc->base,
+					 primary,
+					 NULL,
+					 &vs_crtc_funcs,
+					 NULL);
 	if (ret) {
 		dev_err(drm_dev->dev, "Couldn't initialize CRTC\n");
 		return ERR_PTR(ret);
