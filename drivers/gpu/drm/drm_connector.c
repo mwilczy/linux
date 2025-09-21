@@ -580,45 +580,27 @@ int drmm_connector_hdmi_init(struct drm_device *dev,
 {
 	int ret;
 
-	printk(KERN_INFO "MICHAL: drmm_connector_hdmi_init: entry\n");
-	printk(KERN_INFO "MICHAL: drmm_connector_hdmi_init: vendor=%s, product=%s\n",
-	       vendor, product);
-
-	if (!vendor || !product) {
-		printk(KERN_ERR "MICHAL: drmm_connector_hdmi_init: FAILED - vendor or product is NULL\n");
+	if (!vendor || !product)
 		return -EINVAL;
-	}
 
 	if ((strlen(vendor) > DRM_CONNECTOR_HDMI_VENDOR_LEN) ||
-	    (strlen(product) > DRM_CONNECTOR_HDMI_PRODUCT_LEN)) {
-		printk(KERN_ERR "MICHAL: drmm_connector_hdmi_init: FAILED - vendor or product string too long\n");
+	    (strlen(product) > DRM_CONNECTOR_HDMI_PRODUCT_LEN))
 		return -EINVAL;
-	}
 
 	if (!(connector_type == DRM_MODE_CONNECTOR_HDMIA ||
-	      connector_type == DRM_MODE_CONNECTOR_HDMIB)) {
-		printk(KERN_ERR "MICHAL: drmm_connector_hdmi_init: FAILED - invalid connector_type %d\n", connector_type);
+	      connector_type == DRM_MODE_CONNECTOR_HDMIB))
 		return -EINVAL;
-	}
 
-	if (!supported_formats || !(supported_formats & BIT(HDMI_COLORSPACE_RGB))) {
-		printk(KERN_ERR "MICHAL: drmm_connector_hdmi_init: FAILED - invalid supported_formats 0x%lx\n", supported_formats);
+	if (!supported_formats || !(supported_formats & BIT(HDMI_COLORSPACE_RGB)))
 		return -EINVAL;
-	}
 
-	if (connector->ycbcr_420_allowed != !!(supported_formats & BIT(HDMI_COLORSPACE_YUV420))) {
-		printk(KERN_ERR "MICHAL: drmm_connector_hdmi_init: FAILED - ycbcr_420_allowed mismatch\n");
+	if (connector->ycbcr_420_allowed != !!(supported_formats & BIT(HDMI_COLORSPACE_YUV420)))
 		return -EINVAL;
-	}
 
-	if (!(max_bpc == 8 || max_bpc == 10 || max_bpc == 12)) {
-		printk(KERN_ERR "MICHAL: drmm_connector_hdmi_init: FAILED - invalid max_bpc %u\n", max_bpc);
+	if (!(max_bpc == 8 || max_bpc == 10 || max_bpc == 12))
 		return -EINVAL;
-	}
 
-	printk(KERN_INFO "MICHAL: drmm_connector_hdmi_init: all checks passed, calling drmm_connector_init\n");
 	ret = drmm_connector_init(dev, connector, funcs, connector_type, ddc);
-	printk(KERN_INFO "MICHAL: drmm_connector_hdmi_init: drmm_connector_init returned %d\n", ret);
 	if (ret)
 		return ret;
 
@@ -641,7 +623,6 @@ int drmm_connector_hdmi_init(struct drm_device *dev,
 
 	connector->hdmi.funcs = hdmi_funcs;
 
-	printk(KERN_INFO "MICHAL: drmm_connector_hdmi_init: success\n");
 	return 0;
 }
 EXPORT_SYMBOL(drmm_connector_hdmi_init);

@@ -247,8 +247,6 @@ static void inno_hdmi_config_pll(struct stf_inno_hdmi *stf_hdmi)
 	u8 reg_1aa_value = post_cfg->post_div_en ? 0x0e : 0x02;
 	u8 frac_div2_val;
 
-	dev_info(stf_hdmi->dev, "MICHAL: %s: entry\n", __func__);
-
 	/* Power down PLLs before re-configuration */
 	hdmi_writeb(hdmi, STF_INNO_PRE_PLL_CONTROL, STF_INNO_PRE_PLL_POWER_DOWN);
 	hdmi_writeb(hdmi, STF_INNO_POST_PLL_DIV_1,
@@ -287,14 +285,11 @@ static void inno_hdmi_config_pll(struct stf_inno_hdmi *stf_hdmi)
 	/* Power up PLLs */
 	hdmi_writeb(hdmi, STF_INNO_PRE_PLL_CONTROL, 0x00);
 	hdmi_writeb(hdmi, STF_INNO_POST_PLL_DIV_1, reg_1aa_value);
-
-	dev_info(stf_hdmi->dev, "MICHAL: %s: exit\n", __func__);
 }
 static void inno_hdmi_improve_eye_diagram(struct stf_inno_hdmi *stf_hdmi)
 {
 	struct inno_hdmi *hdmi = stf_hdmi->inno;
 
-	dev_info(stf_hdmi->dev, "MICHAL: %s: entry\n", __func__);
 	switch (stf_hdmi->vic) {
 	case 95:
 	case 94:
@@ -318,7 +313,6 @@ static void inno_hdmi_improve_eye_diagram(struct stf_inno_hdmi *stf_hdmi)
 		hdmi_writeb(hdmi, 0x1c0, 0x00);
 		break;
 	}
-	dev_info(stf_hdmi->dev, "MICHAL: %s: exit\n", __func__);
 }
 
 static void inno_hdmi_starfive_enable(struct device *dev,
@@ -333,8 +327,6 @@ static void inno_hdmi_starfive_enable(struct device *dev,
 	u32 val;
 	int ret;
 
-	dev_info(dev, "MICHAL: %s: entry\n", __func__);
-
 	for (; pre_cfg->pixclock; pre_cfg++) {
 		if (pre_cfg->tmdsclock == normalized_rate &&
 		    pre_cfg->pixclock == normalized_rate)
@@ -342,12 +334,11 @@ static void inno_hdmi_starfive_enable(struct device *dev,
 	}
 	if (!pre_cfg->pixclock) {
 		dev_err(dev,
-			"MICHAL: %s: Could not find pre-PLL config for rate %lu\n",
-			__func__, tmds_rate);
+			"Could not find pre-PLL config for rate %lu\n",
+			tmds_rate);
 		return;
 	}
 	stf_hdmi->pre_cfg = pre_cfg;
-	dev_info(dev, "MICHAL: %s: Found pre-PLL config\n", __func__);
 
 	for (; post_cfg->tmdsclock; post_cfg++) {
 		if (tmds_rate <= post_cfg->tmdsclock)
@@ -355,12 +346,11 @@ static void inno_hdmi_starfive_enable(struct device *dev,
 	}
 	if (!post_cfg->tmdsclock) {
 		dev_err(dev,
-			"MICHAL: %s: Could not find post-PLL config for rate %lu\n",
-			__func__, tmds_rate);
+			"Could not find post-PLL config for rate %lu\n",
+			tmds_rate);
 		return;
 	}
 	stf_hdmi->post_cfg = post_cfg;
-	dev_info(dev, "MICHAL: %s: Found post-PLL config\n", __func__);
 
 	hdmi_writeb(hdmi, STF_INNO_BIAS_CONTROL,
 		    hdmi_readb(hdmi, STF_INNO_BIAS_CONTROL) |
@@ -371,23 +361,17 @@ static void inno_hdmi_starfive_enable(struct device *dev,
 
 	inno_hdmi_config_pll(stf_hdmi);
 
-	dev_info(dev, "MICHAL: %s: Polling for pre-PLL lock...\n", __func__);
 	ret = readx_poll_timeout(readl_relaxed,
 				 hdmi->regs + STF_INNO_PRE_PLL_LOCK_STATUS * 4,
 				 val, val & 0x1, 1000, 100000);
 	if (ret < 0)
-		dev_err(dev, "MICHAL: %s: Timeout waiting for pre-PLL lock\n",
-			__func__);
-	dev_info(dev, "MICHAL: %s: Pre-PLL lock poll finished\n", __func__);
+		dev_err(dev, "Timeout waiting for pre-PLL lock\n");
 
-	dev_info(dev, "MICHAL: %s: Polling for post-PLL lock...\n", __func__);
 	ret = readx_poll_timeout(readl_relaxed,
 				 hdmi->regs + STF_INNO_POST_PLL_LOCK_STATUS * 4,
 				 val, val & 0x1, 1000, 100000);
 	if (ret < 0)
-		dev_err(dev, "MICHAL: %s: Timeout waiting for post-PLL lock\n",
-			__func__);
-	dev_info(dev, "MICHAL: %s: Post-PLL lock poll finished\n", __func__);
+		dev_err(dev, "Timeout waiting for post-PLL lock\n");
 
 	hdmi_writeb(hdmi, STF_INNO_LDO_CONTROL, STF_INNO_LDO_ENABLE);
 	hdmi_writeb(hdmi, STF_INNO_SERIALIER_CONTROL,
@@ -397,7 +381,6 @@ static void inno_hdmi_starfive_enable(struct device *dev,
 
 	/* Value from vendor driver, includes undocumented 0x80 bit. */
 	hdmi_writeb(hdmi, STF_INNO_TMDS_CONTROL, 0x8f);
-	dev_info(dev, "MICHAL: %s: exit\n", __func__);
 }
 
 static int starfive_inno_hdmi_probe(struct platform_device *pdev)
@@ -413,14 +396,10 @@ static int starfive_inno_hdmi_probe(struct platform_device *pdev)
 
 	stf_hdmi->dev = dev;
 
-	printk("MICHAL starfive_inno_hdmi_probe 1\n");
-
 	/* Get SoC-specific resources. The generic driver doesn't know about these. */
 	stf_hdmi->tx_rst = devm_reset_control_get_exclusive(dev, "hdmi_tx");
 	if (IS_ERR(stf_hdmi->tx_rst))
 		return dev_err_probe(dev, PTR_ERR(stf_hdmi->tx_rst), "failed to get tx reset\n");
-
-	printk("MICHAL starfive_inno_hdmi_probe 2\n");
 
 	/* Populate the clock names */
         stf_hdmi->clks[CLK_SYS].id = "sysclk";
@@ -435,8 +414,6 @@ static int starfive_inno_hdmi_probe(struct platform_device *pdev)
 	ret = clk_bulk_prepare_enable(CLK_HDMI_NUM, stf_hdmi->clks);
 	if (ret)
 		return ret;
-
-	printk("MICHAL starfive_inno_hdmi_probe 1\n");
 
 	ret = reset_control_deassert(stf_hdmi->tx_rst);
 	if (ret) {
@@ -457,14 +434,6 @@ static int starfive_inno_hdmi_probe(struct platform_device *pdev)
 		platform_set_drvdata(pdev, NULL);
 		return PTR_ERR(stf_hdmi->inno);
 	}
-
-	printk(KERN_INFO "MICHAL HDMI DRIVER: Created bridge at address %p\n",
-               &stf_hdmi->inno->bridge);
-
-	printk("MICHAL succesfully added the bridge\n");
-
-	printk(KERN_INFO "MICHAL HDMI DRIVER: Bridge refcount after add is %d\n",
-               kref_read(&stf_hdmi->inno->bridge.refcount));
 
 	return 0;
 }
