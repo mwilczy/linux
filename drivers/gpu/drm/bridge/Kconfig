@@ -324,7 +324,7 @@ config DRM_SIMPLE_BRIDGE
 	  THS8134 and THS8135 or passive resistor ladder DACs.
 
 config DRM_STARFIVE_INNO_HDMI
-	bool "Starfive JH7110 specific extensions for Innosilicon HDMI"
+	tristate "Starfive JH7110 specific extensions for Innosilicon HDMI"
 	depends on ARCH_STARFIVE || COMPILE_TEST
 	select DRM_INNO_HDMI
 	help
