@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Starfive SoC drivers
+#
+
+if ARCH_STARFIVE || COMPILE_TEST
+menu "Starfive SoC drivers"
+
+config SOC_STARFIVE_JH7110_VOUT_SUBSYSTEM
+    tristate "StarFive JH7110 VOUT Subsystem Manager"
+    help
+      Enables the VOUT subsystem wrapper driver for the JH7110 SoC.
+
+config SOC_STARFIVE_HDMI_MFD
+    tristate "StarFive JH7110 HDMI MFD Driver"
+    depends on OF
+    help
+      Enable the MFD wrapper driver for the StarFive JH7110 HDMI
+      controller+PHY block. This is required to split the
+      monolithic IP into logical PHY and Controller devices.
+
+endmenu
+endif
