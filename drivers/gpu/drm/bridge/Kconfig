@@ -323,6 +323,24 @@ config DRM_SIMPLE_BRIDGE
 	  Support for non-programmable DRM bridges, such as ADI ADV7123, TI
 	  THS8134 and THS8135 or passive resistor ladder DACs.
 
+config DRM_STARFIVE_INNO_HDMI
+	tristate "Starfive JH7110 specific extensions for Innosilicon HDMI"
+	depends on ARCH_STARFIVE || COMPILE_TEST
+	select DRM_INNO_HDMI
+	help
+          This configuration option enables support for StarFive SoC
+          specific extensions for the Innosilicon HDMI driver.
+
+          Enabling this option is essential for proper functionality
+          of HDMI on JH7110 based SoCs. If you are using a StarFive
+          JH7110 SoC and require HDMI output functionalities,
+          you should select this option to ensure that the driver is
+          compiled with the necessary extensions and dependencies.
+
+          This option may enable additional features and capabilities
+          specific to StarFive's implementation of the HDMI technology.
+
+
 config DRM_THINE_THC63LVD1024
 	tristate "Thine THC63LVD1024 LVDS decoder bridge"
 	depends on OF
