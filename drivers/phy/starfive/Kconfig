@@ -25,6 +25,14 @@ config PHY_STARFIVE_JH7110_DPHY_TX
 	  system. If M is selected, the module will be called
 	  phy-jh7110-dphy-tx.ko.
 
+config PHY_STARFIVE_JH7110_INNO_HDMI
+	tristate "Starfive JH7110 INNO HDMI PHY"
+	depends on COMMON_CLK
+	depends on HAS_IOMEM
+	select GENERIC_PHY
+	help
+	  No help for now.
+
 config PHY_STARFIVE_JH7110_PCIE
 	tristate "Starfive JH7110 PCIE 2.0/USB 3.0 PHY support"
 	depends on HAS_IOMEM
