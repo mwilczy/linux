@@ -21,5 +21,22 @@ config SOC_STARFIVE_JH7110_VOUT_SUBSYSTEM
 	  This is essential for the display hardware to be detected and
 	  to function correctly.
 
+config SOC_STARFIVE_JH7110_HDMI_MFD
+    tristate "StarFive JH7110 HDMI MFD Driver"
+    depends on OF
+    help
+	  This option enables the MFD (Multi-Function Device) parent driver
+	  for the monolithic StarFive JH7110 HDMI peripheral.
+
+	  The JH7110 HDMI IP block contains both the digital controller
+	  (DRM bridge) and the analog PHY (clock/phy provider) logic within
+	  a single shared register space.
+
+	  This MFD driver acts as a wrapper. Its only job is to map the
+	  shared registers and create separate logical child devices
+	  for the "PHY" and the "controller". This is required to
+	  correctly manage resources and break a circular clock dependency
+	  between the PHY and the VOUT clock generator at probe time.
+
 endmenu
 endif
