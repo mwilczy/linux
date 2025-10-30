@@ -9,7 +9,6 @@
 #include <linux/clk-provider.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
-#include <linux/pm_runtime.h>
 #include <linux/reset.h>
 
 #include <dt-bindings/clock/starfive,jh7110-crg.h>
@@ -40,10 +39,10 @@ static const struct jh71x0_clk_data jh7110_voutclk_data[] = {
 	JH71X0_GATE(JH7110_VOUTCLK_DC8200_AXI, "dc8200_axi", 0, JH7110_VOUTCLK_VOUT_TOP_AXI),
 	JH71X0_GATE(JH7110_VOUTCLK_DC8200_CORE, "dc8200_core", 0, JH7110_VOUTCLK_VOUT_TOP_AXI),
 	JH71X0_GATE(JH7110_VOUTCLK_DC8200_AHB, "dc8200_ahb", 0, JH7110_VOUTCLK_VOUT_TOP_AHB),
-	JH71X0_GMUX(JH7110_VOUTCLK_DC8200_PIX0, "dc8200_pix0", 0, 2,
+	JH71X0_GMUX(JH7110_VOUTCLK_DC8200_PIX0, "dc8200_pix0", CLK_SET_RATE_PARENT, 2,
 		    JH7110_VOUTCLK_DC8200_PIX,
 		    JH7110_VOUTCLK_HDMITX0_PIXELCLK),
-	JH71X0_GMUX(JH7110_VOUTCLK_DC8200_PIX1, "dc8200_pix1", 0, 2,
+	JH71X0_GMUX(JH7110_VOUTCLK_DC8200_PIX1, "dc8200_pix1", CLK_SET_RATE_PARENT, 2,
 		    JH7110_VOUTCLK_DC8200_PIX,
 		    JH7110_VOUTCLK_HDMITX0_PIXELCLK),
 	/* LCD */
@@ -133,12 +132,6 @@ static int jh7110_voutcrg_probe(struct platform_device *pdev)
 		return dev_err_probe(priv->dev, ret, "failed to get top clocks\n");
 	dev_set_drvdata(priv->dev, top);
 
-	/* enable power domain and clocks */
-	pm_runtime_enable(priv->dev);
-	ret = pm_runtime_resume_and_get(priv->dev);
-	if (ret < 0)
-		return dev_err_probe(priv->dev, ret, "failed to turn on power\n");
-
 	ret = jh7110_vout_top_rst_init(priv);
 	if (ret)
 		goto err_exit;
@@ -194,15 +187,7 @@ static int jh7110_voutcrg_probe(struct platform_device *pdev)
 	return 0;
 
 err_exit:
-	pm_runtime_put_sync(priv->dev);
-	pm_runtime_disable(priv->dev);
 	return ret;
-}
-
-static void jh7110_voutcrg_remove(struct platform_device *pdev)
-{
-	pm_runtime_put_sync(&pdev->dev);
-	pm_runtime_disable(&pdev->dev);
 }
 
 static const struct of_device_id jh7110_voutcrg_match[] = {
@@ -213,7 +198,6 @@ MODULE_DEVICE_TABLE(of, jh7110_voutcrg_match);
 
 static struct platform_driver jh7110_voutcrg_driver = {
 	.probe = jh7110_voutcrg_probe,
-	.remove = jh7110_voutcrg_remove,
 	.driver = {
 		.name = "clk-starfive-jh7110-vout",
 		.of_match_table = jh7110_voutcrg_match,
