@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Starfive SoC drivers
+#
+
+if ARCH_STARFIVE || COMPILE_TEST
+menu "Starfive SoC drivers"
+
+config SOC_STARFIVE_JH7110_VOUT_SUBSYSTEM
+	tristate "StarFive JH7110 VOUT Subsystem Manager"
+	help
+	  Enable this option to support the VOUT (Video Output) subsystem on
+	  the StarFive JH7110 SoC.
+
+	  This driver acts as a parent wrapper for all display related
+	  hardware blocks (DC8200, VOUTCRG, HDMI MFD). Its primary
+	  responsibility is to manage the shared PD_VOUT power domain,
+	  enabling power, clocks, and resets for the entire subsystem
+	  before the individual child drivers are probed.
+
+	  This is essential for the display hardware to be detected and
+	  to function correctly.
+
+endmenu
+endif
